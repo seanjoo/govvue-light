@@ -134,9 +134,11 @@ console. Users with the `admin` role see the Admin menu and can manage users
 from the application; backend routes verify the signed group claim.
 
 The script does not prompt for or handle a password. Cognito separately
-generates a random temporary password and sends its standard invitation to the
-supplied email address using the Cognito default email sender. The temporary
-password expires after seven days. The user signs in at
+generates a random temporary password and sends a branded GovVue Light
+invitation from `GovVue Light <notifications@govvue.com>`. The invitation
+identifies the application, links to the sign-in page, and explains the
+first-login password change. The temporary password expires after seven days.
+The user signs in at
 `https://app.govvue.com` with that password and must replace it before
 continuing. Self-registration is disabled.
 
@@ -146,11 +148,11 @@ Cognito email-code password recovery flow. Administrators can send a password
 reset from the Admin page; users who have not completed first sign-in receive a
 new generated temporary password and invitation instead.
 
-The Cognito invitation and SES verification are separate messages. The default
-Cognito sender is appropriate for this application's small user count but is
-subject to Cognito's built-in daily email quota. A branded invitation or
-higher-volume Cognito delivery would require configuring the user pool to use
-an SES sender with `EmailSendingAccount` set to `DEVELOPER`.
+The Cognito invitation and SES recipient verification are separate messages.
+The user pool uses the verified `govvue.com` SES identity with
+`EmailSendingAccount` set to `DEVELOPER` for branded invitations, password
+recovery, and verification messages. These account messages use the workshop
+SES quota and sending-access status.
 
 The application stack configures `app.govvue.com` as the CloudFront alternate domain name, attaches the workshop ACM certificate, and creates Route 53 A and AAAA alias records in the workshop hosted zone.
 

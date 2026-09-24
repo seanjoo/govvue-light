@@ -76,8 +76,9 @@ notifications. Inspect the feed Lambda logs, queue depths, DLQs, and the
 
 ## SES delivery
 
-Daily notification mail is sent from `notifications@govvue.com`. Cognito's
-default sender remains dedicated to account invitations and password recovery.
+Daily notification mail is sent from `notifications@govvue.com`. Cognito
+account invitations and password-recovery messages are sent as
+`GovVue Light <notifications@govvue.com>` through the same verified SES domain.
 The stack provisions the `govvue.com` SES identity and DKIM DNS records.
 
 The workshop SES account must be out of the sandbox to send to arbitrary user

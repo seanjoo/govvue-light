@@ -160,6 +160,7 @@ Resources:
 
   UserPool:
     Type: AWS::Cognito::UserPool
+    DependsOn: NotificationEmailIdentity
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
@@ -167,9 +168,29 @@ Resources:
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
       EmailConfiguration:
-        EmailSendingAccount: COGNITO_DEFAULT
+        EmailSendingAccount: DEVELOPER
+        From: !Sub 'GovVue Light <${NotificationFromEmail}>'
+        ReplyToEmailAddress: !Ref NotificationFromEmail
+        SourceArn: !Sub 'arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesIdentityDomain}'
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: "You're invited to GovVue Light"
+          EmailMessage: !Sub |
+            <p>Hello,</p>
+            <p>An administrator created a GovVue Light account for you. GovVue Light helps you search and save SAM.gov opportunities and entities and manage daily opportunity notifications.</p>
+            <p><strong>Sign in:</strong> <a href="https://${AppDomainName}">https://${AppDomainName}</a></p>
+            <p><strong>Username:</strong> {username}<br><strong>Temporary password:</strong> {####}</p>
+            <p>On your first sign-in, you will be asked to create a permanent password. This temporary password expires after seven days.</p>
+            <p>If you were not expecting this invitation, you can ignore this email or contact your GovVue Light administrator.</p>
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: GovVue Light verification code
+        EmailMessage: !Sub |
+          <p>Use this verification code for your GovVue Light account:</p>
+          <p><strong>{####}</strong></p>
+          <p>Return to <a href="https://${AppDomainName}">https://${AppDomainName}</a> to continue.</p>
+          <p>If you did not request this code, you can ignore this email.</p>
       AccountRecoverySetting:
         RecoveryMechanisms:
           - Name: verified_email
