@@ -76,7 +76,7 @@ https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com/oauth2/id
 The application publishes these unauthenticated pages for Google OAuth branding:
 
 ```text
-Application home page:          https://app.govvue.com/about
+Application home page:          https://app.govvue.com/
 Application privacy policy:     https://app.govvue.com/privacy
 Application terms of service:   https://app.govvue.com/terms
 Authorized domain:              govvue.com

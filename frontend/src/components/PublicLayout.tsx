@@ -13,7 +13,7 @@ export default function PublicLayout() {
       <a className="usa-skipnav" href="#main-content">Skip to main content</a>
       <header className="public-header">
         <div className="grid-container public-header__inner">
-          <NavLink to="/about" className="app-brand" aria-label={`${runtimeConfig.appTitle} public home`}>
+          <NavLink to="/" className="app-brand" aria-label={`${runtimeConfig.appTitle} public home`}>
             <span className="app-brand__mark" aria-hidden="true">GV</span>
             <span>{runtimeConfig.appTitle}</span>
           </NavLink>
