@@ -16,12 +16,20 @@ import { runtimeConfig } from '../runtimeConfig';
 
 const OAUTH_ERROR_STORAGE_KEY = 'govvue.oauth.error';
 
-function oauthErrorMessage(error: unknown): string {
-  return error instanceof Error
+export function oauthErrorMessage(error: unknown): string {
+  const message = error instanceof Error
     ? error.message
     : typeof error === 'string'
       ? error
       : 'Google sign-in could not be completed. Please try again.';
+
+  if (message.includes('No invited GovVue Light account matches this Google email address')) {
+    return 'This Google account is not authorized for GovVue Light. Ask an administrator to invite this exact email address, then try again.';
+  }
+  if (message.includes('User cancelled OAuth flow')) {
+    return 'Google sign-in was canceled. Please try again when you are ready.';
+  }
+  return message;
 }
 
 // Amplify can finish the OAuth callback while React is still starting. Preserve

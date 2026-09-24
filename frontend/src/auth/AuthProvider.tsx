@@ -8,6 +8,7 @@ import {
   login,
   loginWithGoogle,
   logout,
+  oauthErrorMessage,
   type LoginResult,
 } from './cognito';
 
@@ -51,12 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refresh().finally(() => setLoading(false));
     } else if (payload.event === 'signInWithRedirect_failure') {
       const data = payload.data as { error?: unknown } | undefined;
-      const oauthFailure = data?.error;
-      setOAuthError(oauthFailure instanceof Error
-        ? oauthFailure.message
-        : typeof oauthFailure === 'string'
-          ? oauthFailure
-          : 'Google sign-in could not be completed. Please try again.');
+      setOAuthError(oauthErrorMessage(data?.error));
       consumeOAuthError();
       setLoading(false);
     } else if (payload.event === 'signedOut') {
