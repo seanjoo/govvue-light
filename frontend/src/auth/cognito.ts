@@ -55,7 +55,10 @@ export async function completeNewPassword(password: string): Promise<LoginResult
 
 export async function loginWithGoogle(returnTo: string): Promise<void> {
   window.sessionStorage.setItem('govvue.oauth.returnTo', returnTo);
-  await signInWithRedirect({ provider: 'Google' });
+  await signInWithRedirect({
+    provider: 'Google',
+    options: { prompt: 'SELECT_ACCOUNT' },
+  });
 }
 
 export async function logout(): Promise<void> {
