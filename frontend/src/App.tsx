@@ -16,6 +16,7 @@ import SavedEntitiesPage from './pages/SavedEntitiesPage';
 import SavedEntitySearchesPage from './pages/SavedEntitySearchesPage';
 import EntityDetailPage from './pages/EntityDetailPage';
 import PublicLayout from './components/PublicLayout';
+import LandingPage from './pages/LandingPage';
 import AboutPage from './pages/AboutPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
@@ -32,8 +33,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<PublicLayout />}>
-        <Route index element={<AboutPage />} />
-        <Route path="/about" element={<Navigate to="/" replace />} />
+        <Route index element={<LandingPage />} />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
       </Route>

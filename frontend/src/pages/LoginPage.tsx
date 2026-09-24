@@ -219,6 +219,7 @@ export default function LoginPage() {
           >{resetMode === 'none' ? 'Forgot password?' : 'Back to sign in'}</button>
         )}
         <nav className="login-public-links" aria-label="Public information">
+          <Link to="/about">About</Link>
           <Link to="/privacy">Privacy</Link>
           <Link to="/terms">Terms</Link>
         </nav>
