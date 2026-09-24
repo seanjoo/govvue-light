@@ -159,11 +159,15 @@ export default function SearchPage() {
       <form className="search-panel" onSubmit={submit}>
         <div className="grid-row grid-gap">
           <div className="tablet:grid-col-6">
-            <label className="usa-label" htmlFor="title">Title or keywords</label>
+            <div className="field-label">
+              <label className="usa-label" htmlFor="title">Title or keywords</label>
+            </div>
             <input className="usa-input maxw-none" id="title" value={filters.title} onChange={(event) => update('title', event.target.value)} />
           </div>
           <div className="tablet:grid-col-3">
-            <label className="usa-label" htmlFor="notice_id">Notice ID</label>
+            <div className="field-label">
+              <label className="usa-label" htmlFor="notice_id">Notice ID</label>
+            </div>
             <input className="usa-input maxw-none" id="notice_id" value={filters.notice_id} onChange={(event) => update('notice_id', event.target.value)} />
           </div>
           <div className="tablet:grid-col-3">
