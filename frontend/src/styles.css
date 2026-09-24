@@ -16,7 +16,7 @@ a { color: #005ea8; }
 .app-nav { display: flex; align-items: center; gap: .25rem; list-style: none; margin: 0; padding: 0; }
 .app-nav > li > a, .app-nav summary { display: block; padding: 1.6rem .85rem; color: #3d4551; font-weight: 600; text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; }
 .app-nav > li > .app-nav__mobile-direct { display: none; }
-.app-nav > li > a.active, .app-nav summary.active { color: #005ea8; border-bottom-color: #005ea8; }
+.app-nav > li > a.active, .app-nav summary.active { color: #005ea8; background: #e7f6f8; border-bottom-color: transparent; }
 .app-nav__menu { position: relative; }
 .app-nav__menu details { position: relative; }
 .app-nav__menu summary { cursor: pointer; list-style: none; }
