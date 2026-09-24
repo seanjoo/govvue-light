@@ -3,8 +3,8 @@
   <desc id="description">The white letters GV centered in a blue rounded square.</desc>
   <rect width="512" height="512" rx="56" fill="#005ea8"/>
   <text
-    x="256"
-    y="270"
+    x="252"
+    y="276"
     fill="#ffffff"
     font-family="Source Sans Pro, Arial, Helvetica, sans-serif"
     font-size="200"
