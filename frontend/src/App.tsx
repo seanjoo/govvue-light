@@ -28,12 +28,18 @@ function Protected() {
   return user ? <Outlet /> : <Navigate to="/login" replace state={{ from: location }} />;
 }
 
+function HomeEntry() {
+  const { user, loading } = useAuth();
+  if (loading) return <main className="grid-container padding-y-6"><p>Loading…</p></main>;
+  return user ? <Navigate to="/search" replace /> : <LandingPage />;
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<PublicLayout />}>
-        <Route index element={<LandingPage />} />
+        <Route index element={<HomeEntry />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
