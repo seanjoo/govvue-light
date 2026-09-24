@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+.venv/
+__pycache__/
+*.py[cod]
+*.tsbuildinfo
+frontend/node_modules/
+frontend/dist/
+frontend/public/runtime-config.js
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Environment configuration is intentionally local because it contains secrets.
+config/*.govvue-light.yml
+!config/example.govvue-light.yml

@@ -1,0 +1,136 @@
+import { FormEvent, useState } from 'react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthProvider';
+import { beginPasswordReset, finishPasswordReset } from '../auth/cognito';
+import { runtimeConfig } from '../runtimeConfig';
+
+export default function LoginPage() {
+  const { user, loading, signIn, setNewPassword } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [newPasswordRequired, setNewPasswordRequired] = useState(false);
+  const [resetMode, setResetMode] = useState<'none' | 'request' | 'confirm'>('none');
+  const [confirmationCode, setConfirmationCode] = useState('');
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const requestedPath = (() => {
+    const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+    return from?.pathname ? `${from.pathname}${from.search || ''}` : '/search';
+  })();
+
+  if (!loading && user) return <Navigate to={requestedPath} replace />;
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+    setSubmitting(true);
+    try {
+      if (resetMode === 'request') {
+        const result = await beginPasswordReset(email);
+        if (result.nextStep.resetPasswordStep === 'CONFIRM_RESET_PASSWORD_WITH_CODE') {
+          setResetMode('confirm');
+          setMessage('A password-reset code was sent to your email address.');
+        } else {
+          setResetMode('none');
+          setMessage('Your password reset is complete. You can sign in.');
+        }
+        return;
+      }
+      if (resetMode === 'confirm') {
+        await finishPasswordReset(email, confirmationCode, password);
+        setResetMode('none');
+        setConfirmationCode('');
+        setPassword('');
+        setMessage('Your password was reset. Sign in with the new password.');
+        return;
+      }
+      const result = newPasswordRequired
+        ? await setNewPassword(password)
+        : await signIn(email, password);
+      if (result.isSignedIn) {
+        navigate(requestedPath, { replace: true });
+      } else if (result.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+        setPassword('');
+        setNewPasswordRequired(true);
+      } else {
+        setError(`Additional Cognito step is required: ${result.nextStep.signInStep}`);
+      }
+    } catch (caught) {
+      if (caught instanceof Error && caught.name === 'PasswordResetRequiredException') {
+        setPassword('');
+        setResetMode('confirm');
+        setMessage('Enter the password-reset code from your email and choose a new password.');
+      } else {
+        setError(caught instanceof Error ? caught.message : 'Unable to sign in');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main id="main-content" className="login-page">
+      <div className="login-panel">
+        <div className="app-brand app-brand--login">
+          <span className="app-brand__mark" aria-hidden="true">GV</span>
+          <span>{runtimeConfig.appTitle}</span>
+        </div>
+        <h1>{newPasswordRequired ? 'Choose a new password' : resetMode === 'request' ? 'Reset password' : resetMode === 'confirm' ? 'Enter reset code' : 'Sign in'}</h1>
+        <p className="text-base">
+          {newPasswordRequired
+            ? 'Your temporary password must be replaced before continuing.'
+            : resetMode === 'request'
+              ? 'We will send a password-reset code to your verified email address.'
+              : resetMode === 'confirm'
+                ? 'Enter the emailed code and choose a new password.'
+            : 'Search and save active federal contract opportunities.'}
+        </p>
+        {error && <div className="usa-alert usa-alert--error" role="alert"><div className="usa-alert__body"><p className="usa-alert__text">{error}</p></div></div>}
+        {message && <div className="usa-alert usa-alert--info" role="status"><div className="usa-alert__body"><p className="usa-alert__text">{message}</p></div></div>}
+        <form className="usa-form" onSubmit={submit}>
+          {!newPasswordRequired && resetMode !== 'confirm' && (
+            <>
+              <label className="usa-label" htmlFor="email">Email</label>
+              <input className="usa-input" id="email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} />
+            </>
+          )}
+          {resetMode === 'confirm' && (
+            <>
+              <label className="usa-label" htmlFor="reset-email">Email</label>
+              <input className="usa-input" id="reset-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} />
+              <label className="usa-label" htmlFor="confirmation-code">Reset code</label>
+              <input className="usa-input" id="confirmation-code" inputMode="numeric" autoComplete="one-time-code" required value={confirmationCode} onChange={(event) => setConfirmationCode(event.target.value)} />
+            </>
+          )}
+          {resetMode !== 'request' && (
+            <>
+              <label className="usa-label" htmlFor="password">{newPasswordRequired || resetMode === 'confirm' ? 'New password' : 'Password'}</label>
+              <input className="usa-input" id="password" type="password" autoComplete={newPasswordRequired || resetMode === 'confirm' ? 'new-password' : 'current-password'} minLength={12} required value={password} onChange={(event) => setPassword(event.target.value)} />
+            </>
+          )}
+          <button className="usa-button width-full margin-top-3" type="submit" disabled={submitting}>
+            {submitting ? 'Please wait…' : newPasswordRequired ? 'Set password' : resetMode === 'request' ? 'Send reset code' : resetMode === 'confirm' ? 'Reset password' : 'Sign in'}
+          </button>
+        </form>
+        {!newPasswordRequired && (
+          <button
+            className="usa-button usa-button--unstyled margin-top-2"
+            type="button"
+            onClick={() => {
+              setResetMode(resetMode === 'none' ? 'request' : 'none');
+              setConfirmationCode('');
+              setPassword('');
+              setError('');
+              setMessage('');
+            }}
+          >{resetMode === 'none' ? 'Forgot password?' : 'Back to sign in'}</button>
+        )}
+      </div>
+    </main>
+  );
+}

@@ -1,0 +1,1009 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GovVue Light serverless opportunity and entity search-and-save application.
+
+Parameters:
+  ProjectName:
+    Type: String
+    AllowedPattern: '[a-z0-9-]+'
+  Environment:
+    Type: String
+    AllowedValues: [dev, stg, prod]
+  ArtifactBucketName:
+    Type: String
+  LambdaArtifactKey:
+    Type: String
+  LambdaArtifactVersion:
+    Type: String
+    Default: ''
+  BuildId:
+    Type: String
+    AllowedPattern: '[0-9]{8}T[0-9]{6}Z'
+  AppDomainName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the CloudFront application hostname.
+  HostedZoneId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the Route 53 public hosted zone ID.
+  AcmCertificateArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the us-east-1 ACM certificate ARN.
+  DailyFeedScheduleExpression:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the EventBridge schedule expression.
+  DailyFeedScheduleTimezone:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the EventBridge schedule time zone.
+  NotificationFromEmail:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the SES sender address.
+  SesIdentityDomain:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the SES domain identity.
+
+Conditions:
+  HasLambdaArtifactVersion: !Not [!Equals [!Ref LambdaArtifactVersion, '']]
+
+Resources:
+  StateTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  SearchCacheBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteExpiredSearchCache
+            Status: Enabled
+            ExpirationInDays: 1
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  DailyFeedBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteExpiredDailyFeeds
+            Status: Enabled
+            ExpirationInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/DailyFeedRetentionDays}}'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Sub '${ProjectName}-${Environment}'
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      UserPoolTags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub '${ProjectName}-${Environment}-web'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+
+  UserGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: user
+      Description: Standard GovVue Light users
+      Precedence: 10
+
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: admin
+      Description: GovVue Light user administrators
+      Precedence: 1
+
+  NotificationEmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Ref SesIdentityDomain
+      DkimAttributes:
+        SigningEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  NotificationEmailDkimRecords:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Comment: !Sub 'SES DKIM records for ${ProjectName} ${Environment}'
+      RecordSets:
+        - Name: !GetAtt NotificationEmailIdentity.DkimDNSTokenName1
+          Type: CNAME
+          TTL: 300
+          ResourceRecords:
+            - !GetAtt NotificationEmailIdentity.DkimDNSTokenValue1
+        - Name: !GetAtt NotificationEmailIdentity.DkimDNSTokenName2
+          Type: CNAME
+          TTL: 300
+          ResourceRecords:
+            - !GetAtt NotificationEmailIdentity.DkimDNSTokenValue2
+        - Name: !GetAtt NotificationEmailIdentity.DkimDNSTokenName3
+          Type: CNAME
+          TTL: 300
+          ResourceRecords:
+            - !GetAtt NotificationEmailIdentity.DkimDNSTokenValue3
+
+  DailyFeedDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-${Environment}-daily-feed-dlq.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  DailyFeedQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-${Environment}-daily-feed.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      VisibilityTimeout: 1080
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DailyFeedDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  NotificationDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-${Environment}-notifications-dlq'
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  NotificationQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-${Environment}-notifications'
+      VisibilityTimeout: 1080
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt NotificationDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  DailyScheduleDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-${Environment}-daily-schedule-dlq'
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  DailyScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-daily-schedule'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SendDailyFeedMessage
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource:
+                  - !GetAtt DailyFeedQueue.Arn
+                  - !GetAtt DailyScheduleDeadLetterQueue.Arn
+
+  DailyFeedFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-daily-feed'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DailyFeedRuntime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: WriteLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${Environment}-daily-feed:*'
+              - Sid: ReadRuntimeConfiguration
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${Environment}/*'
+              - Sid: DecryptSecureParameters
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+              - Sid: DailyFeedObjects
+                Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub '${DailyFeedBucket.Arn}/*'
+              - Sid: DailyFeedState
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt StateTable.Arn
+                  - !Sub '${StateTable.Arn}/index/*'
+              - Sid: QueueMessages
+                Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt DailyFeedQueue.Arn
+                  - !GetAtt NotificationQueue.Arn
+
+  NotificationFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-notification'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: NotificationRuntime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: WriteLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${Environment}-notification:*'
+              - Sid: ReadRuntimeConfiguration
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${Environment}/*'
+              - Sid: DecryptSecureParameters
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+              - Sid: ReadDailyFeed
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt DailyFeedBucket.Arn
+                  - !Sub '${DailyFeedBucket.Arn}/*'
+              - Sid: NotificationState
+                Effect: Allow
+                Action:
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt StateTable.Arn
+              - Sid: SendNotificationEmail
+                Effect: Allow
+                Action: ses:SendEmail
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    ses:FromAddress: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/NotificationFromEmail}}'
+              - Sid: ConsumeNotificationMessages
+                Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt NotificationQueue.Arn
+
+  ApiFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-api'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: GovVueLightRuntime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: WriteLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${Environment}-api:*'
+              - Sid: StateTable
+                Effect: Allow
+                Action:
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt StateTable.Arn
+              - Sid: SearchCache
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${SearchCacheBucket.Arn}/*'
+              - Sid: DetectMissingSearchCacheObjects
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt SearchCacheBucket.Arn
+              - Sid: StartDailyFeedRun
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt DailyFeedQueue.Arn
+              - Sid: ReadRuntimeConfiguration
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${Environment}/*'
+              - Sid: DecryptSecureParameters
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+              - Sid: ManageCognitoUsers
+                Effect: Allow
+                Action:
+                  - cognito-idp:AdminAddUserToGroup
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminDeleteUser
+                  - cognito-idp:AdminDisableUser
+                  - cognito-idp:AdminEnableUser
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminListGroupsForUser
+                  - cognito-idp:AdminRemoveUserFromGroup
+                  - cognito-idp:AdminResetUserPassword
+                  - cognito-idp:ListUsers
+                Resource: !GetAtt UserPool.Arn
+              - Sid: VerifyNotificationRecipientsInSesSandbox
+                Effect: Allow
+                Action:
+                  - ses:CreateEmailIdentity
+                  - ses:DeleteEmailIdentity
+                  - ses:GetEmailIdentity
+                Resource: '*'
+
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-api'
+      Description: !Sub 'GovVue Light API build ${BuildId}'
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: app.lambda_handler
+      Role: !GetAtt ApiFunctionRole.Arn
+      MemorySize: 256
+      Timeout: 30
+      ReservedConcurrentExecutions: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LambdaReservedConcurrency}}'
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Ref LambdaArtifactKey
+        S3ObjectVersion: !If
+          - HasLambdaArtifactVersion
+          - !Ref LambdaArtifactVersion
+          - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          APP_ENV: !Ref Environment
+          CONFIG_PREFIX: !Sub '/${ProjectName}/${Environment}'
+          STATE_TABLE: !Ref StateTable
+          SEARCH_CACHE_BUCKET: !Ref SearchCacheBucket
+          FEED_QUEUE_URL: !Ref DailyFeedQueue
+          USER_POOL_ID: !Ref UserPool
+          DEFAULT_NOTIFICATION_TIME: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/DailyNotificationDefaultTime}}'
+          LOG_LEVEL: INFO
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BuildId
+          Value: !Ref BuildId
+
+  ApiFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-api'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  ApiFunctionVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Description: !Sub 'Immutable release ${BuildId}'
+
+  ApiFunctionAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      Name: live
+      FunctionName: !Ref ApiFunction
+      FunctionVersion: !GetAtt ApiFunctionVersion.Version
+      Description: !Sub 'Current GovVue Light release ${BuildId}'
+
+  DailyFeedFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-daily-feed'
+      Description: !Sub 'GovVue Light daily feed build ${BuildId}'
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: daily_feed.lambda_handler
+      Role: !GetAtt DailyFeedFunctionRole.Arn
+      MemorySize: 512
+      Timeout: 180
+      ReservedConcurrentExecutions: 1
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Ref LambdaArtifactKey
+        S3ObjectVersion: !If
+          - HasLambdaArtifactVersion
+          - !Ref LambdaArtifactVersion
+          - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          CONFIG_PREFIX: !Sub '/${ProjectName}/${Environment}'
+          STATE_TABLE: !Ref StateTable
+          DAILY_FEED_BUCKET: !Ref DailyFeedBucket
+          FEED_QUEUE_URL: !Ref DailyFeedQueue
+          NOTIFICATION_QUEUE_URL: !Ref NotificationQueue
+          FEED_TIMEZONE: !Ref DailyFeedScheduleTimezone
+          DEFAULT_NOTIFICATION_TIME: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/DailyNotificationDefaultTime}}'
+          LOG_LEVEL: INFO
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BuildId
+          Value: !Ref BuildId
+
+  DailyFeedFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-daily-feed'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  DailyFeedFunctionVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref DailyFeedFunction
+      Description: !Sub 'Immutable daily feed release ${BuildId}'
+
+  DailyFeedFunctionAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      Name: live
+      FunctionName: !Ref DailyFeedFunction
+      FunctionVersion: !GetAtt DailyFeedFunctionVersion.Version
+
+  DailyFeedEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      Enabled: true
+      EventSourceArn: !GetAtt DailyFeedQueue.Arn
+      FunctionName: !Ref DailyFeedFunctionAlias
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+
+  NotificationFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: NotificationEmailIdentity
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-notification'
+      Description: !Sub 'GovVue Light notification worker build ${BuildId}'
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: notification_worker.lambda_handler
+      Role: !GetAtt NotificationFunctionRole.Arn
+      MemorySize: 512
+      Timeout: 180
+      ReservedConcurrentExecutions: 2
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Ref LambdaArtifactKey
+        S3ObjectVersion: !If
+          - HasLambdaArtifactVersion
+          - !Ref LambdaArtifactVersion
+          - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          CONFIG_PREFIX: !Sub '/${ProjectName}/${Environment}'
+          STATE_TABLE: !Ref StateTable
+          DAILY_FEED_BUCKET: !Ref DailyFeedBucket
+          APP_DOMAIN_NAME: !Ref AppDomainName
+          NOTIFICATION_FROM_EMAIL: !Ref NotificationFromEmail
+          LOG_LEVEL: INFO
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BuildId
+          Value: !Ref BuildId
+
+  NotificationFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-notification'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  NotificationFunctionVersion:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref NotificationFunction
+      Description: !Sub 'Immutable notification release ${BuildId}'
+
+  NotificationFunctionAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      Name: live
+      FunctionName: !Ref NotificationFunction
+      FunctionVersion: !GetAtt NotificationFunctionVersion.Version
+
+  NotificationEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      Enabled: true
+      EventSourceArn: !GetAtt NotificationQueue.Arn
+      FunctionName: !Ref NotificationFunctionAlias
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+
+  DailyFeedSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-daily-feed'
+      Description: Dispatch notifications that are due, sharing one SAM.gov feed per time slot.
+      State: ENABLED
+      ScheduleExpression: !Ref DailyFeedScheduleExpression
+      ScheduleExpressionTimezone: !Ref DailyFeedScheduleTimezone
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt DailyFeedQueue.Arn
+        RoleArn: !GetAtt DailyScheduleRole.Arn
+        Input: '{"action":"tick"}'
+        SqsParameters:
+          MessageGroupId: daily-feed
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt DailyScheduleDeadLetterQueue.Arn
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}'
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowCredentials: false
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowOrigins:
+          - !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/CorsAllowedOrigin}}'
+        MaxAge: 3600
+
+  ApiAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref HttpApi
+      AuthorizerType: JWT
+      IdentitySource:
+        - '$request.header.Authorization'
+      Name: cognito
+      JwtConfiguration:
+        Audience:
+          - !Ref UserPoolClient
+        Issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+
+  ApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '2.0'
+      TimeoutInMillis: 30000
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFunctionAlias}/invocations'
+
+  ProtectedApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'ANY /{proxy+}'
+      AuthorizationType: JWT
+      AuthorizerId: !Ref ApiAuthorizer
+      Target: !Sub 'integrations/${ApiIntegration}'
+
+  PreflightApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'OPTIONS /{proxy+}'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${ApiIntegration}'
+
+  HealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /health'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${ApiIntegration}'
+
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${ProjectName}-${Environment}'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: '$default'
+      AutoDeploy: true
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","status":"$context.status","routeKey":"$context.routeKey","responseLength":"$context.responseLength","integrationLatency":"$context.integrationLatency"}'
+      DefaultRouteSettings:
+        DetailedMetricsEnabled: true
+        ThrottlingBurstLimit: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/ApiThrottleBurst}}'
+        ThrottlingRateLimit: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/ApiThrottleRate}}'
+
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiFunctionAlias
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*'
+
+  WebsiteOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${ProjectName}-${Environment}-website'
+        Description: Signed access from CloudFront to the private website bucket.
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  WebsiteSecurityHeaders:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub '${ProjectName}-${Environment}-security-headers'
+        SecurityHeadersConfig:
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Override: true
+          XSSProtection:
+            ModeBlock: true
+            Protection: true
+            Override: true
+
+  WebsiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub '${ProjectName}-${Environment}'
+        Aliases:
+          - !Ref AppDomainName
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: website
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt WebsiteOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: website
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          ResponseHeadersPolicyId: !Ref WebsiteSecurityHeaders
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AcmCertificateArn
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt WebsiteBucket.Arn
+              - !Sub '${WebsiteBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  AppDnsRecords:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Comment: !Sub 'GovVue Light ${Environment} CloudFront aliases'
+      RecordSets:
+        - Name: !Ref AppDomainName
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt WebsiteDistribution.DomainName
+            HostedZoneId: Z2FDTNDATAQYW2
+            EvaluateTargetHealth: false
+        - Name: !Ref AppDomainName
+          Type: AAAA
+          AliasTarget:
+            DNSName: !GetAtt WebsiteDistribution.DomainName
+            HostedZoneId: Z2FDTNDATAQYW2
+            EvaluateTargetHealth: false
+
+Outputs:
+  ApiEndpoint:
+    Value: !GetAtt HttpApi.ApiEndpoint
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucketName
+  CloudFrontDistributionId:
+    Value: !Ref WebsiteDistribution
+  CloudFrontDomainName:
+    Value: !GetAtt WebsiteDistribution.DomainName
+  CognitoClientId:
+    Value: !Ref UserPoolClient
+  CognitoUserPoolId:
+    Value: !Ref UserPool
+  SearchCacheBucketName:
+    Value: !Ref SearchCacheBucket
+  DailyFeedBucketName:
+    Value: !Ref DailyFeedBucket
+  DailyFeedQueueUrl:
+    Value: !Ref DailyFeedQueue
+  DailyFeedScheduleName:
+    Value: !Ref DailyFeedSchedule
+  NotificationQueueUrl:
+    Value: !Ref NotificationQueue
+  SesIdentityDomain:
+    Value: !Ref NotificationEmailIdentity
+  SsmPrefix:
+    Value: !Sub '/${ProjectName}/${Environment}'
+  StateTableName:
+    Value: !Ref StateTable
+  WebsiteBucketName:
+    Value: !Ref WebsiteBucket
+  WebsiteUrl:
+    Value: !Sub 'https://${AppDomainName}'
+  BuildId:
+    Value: !Ref BuildId
+  AppDomainName:
+    Value: !Ref AppDomainName
