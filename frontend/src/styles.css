@@ -12,9 +12,10 @@ a { color: #005ea8; }
 .app-header__inner { min-height: 76px; display: flex; align-items: center; gap: 2rem; }
 .app-brand { display: inline-flex; align-items: center; gap: .65rem; color: #162e51; font-family: Source Sans Pro Web, sans-serif; font-size: 1.35rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .app-brand__mark { display: inline-grid; place-items: center; width: 2.3rem; height: 2.3rem; border-radius: 4px; color: #fff; background: #005ea8; font-size: .9rem; letter-spacing: .04em; }
-.app-menu-button, .app-nav-panel__header, .app-mobile-account, .app-mobile-signout, .app-nav__mobile-direct, .app-nav-overlay { display: none; }
+.app-menu-button, .app-nav-panel__header, .app-mobile-account, .app-mobile-signout, .app-nav-overlay { display: none; }
 .app-nav { display: flex; align-items: center; gap: .25rem; list-style: none; margin: 0; padding: 0; }
 .app-nav > li > a, .app-nav summary { display: block; padding: 1.6rem .85rem; color: #3d4551; font-weight: 600; text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; }
+.app-nav > li > .app-nav__mobile-direct { display: none; }
 .app-nav > li > a.active, .app-nav summary.active { color: #005ea8; border-bottom-color: #005ea8; }
 .app-nav__menu { position: relative; }
 .app-nav__menu details { position: relative; }
