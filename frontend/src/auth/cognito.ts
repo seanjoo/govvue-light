@@ -4,8 +4,6 @@ import {
   confirmResetPassword,
   confirmSignIn,
   fetchAuthSession,
-  fetchUserAttributes,
-  getCurrentUser,
   resetPassword,
   signIn,
   signInWithRedirect,
@@ -13,7 +11,29 @@ import {
   updatePassword,
   type SignInOutput,
 } from 'aws-amplify/auth';
+import { Hub } from 'aws-amplify/utils';
 import { runtimeConfig } from '../runtimeConfig';
+
+const OAUTH_ERROR_STORAGE_KEY = 'govvue.oauth.error';
+
+function oauthErrorMessage(error: unknown): string {
+  return error instanceof Error
+    ? error.message
+    : typeof error === 'string'
+      ? error
+      : 'Google sign-in could not be completed. Please try again.';
+}
+
+// Amplify can finish the OAuth callback while React is still starting. Preserve
+// an early failure so the login page can show it after the provider mounts.
+Hub.listen('auth', ({ payload }) => {
+  if (payload.event === 'signInWithRedirect_failure') {
+    const data = payload.data as { error?: unknown } | undefined;
+    window.sessionStorage.setItem(OAUTH_ERROR_STORAGE_KEY, oauthErrorMessage(data?.error));
+  } else if (payload.event === 'signedIn' || payload.event === 'signInWithRedirect') {
+    window.sessionStorage.removeItem(OAUTH_ERROR_STORAGE_KEY);
+  }
+});
 
 Amplify.configure({
   Auth: {
@@ -55,6 +75,7 @@ export async function completeNewPassword(password: string): Promise<LoginResult
 
 export async function loginWithGoogle(returnTo: string): Promise<void> {
   window.sessionStorage.setItem('govvue.oauth.returnTo', returnTo);
+  window.sessionStorage.removeItem(OAUTH_ERROR_STORAGE_KEY);
   await signInWithRedirect({
     provider: 'Google',
     options: { prompt: 'SELECT_ACCOUNT' },
@@ -68,24 +89,31 @@ export async function logout(): Promise<void> {
 
 export async function currentUser(): Promise<{ username: string; email: string; role: 'admin' | 'user'; groups: string[] } | null> {
   try {
-    const user = await getCurrentUser();
-    const attributes = await fetchUserAttributes();
     const session = await fetchAuthSession();
-    const rawGroups = session.tokens?.idToken?.payload['cognito:groups'];
+    const payload = session.tokens?.idToken?.payload;
+    if (!payload) return null;
+    const rawGroups = payload['cognito:groups'];
     const groups = Array.isArray(rawGroups)
       ? rawGroups.map(String)
       : typeof rawGroups === 'string'
         ? rawGroups.replace(/^\[|\]$/g, '').split(',').map((value) => value.trim()).filter(Boolean)
         : [];
+    const username = String(payload['cognito:username'] ?? payload.sub ?? '');
     return {
-      username: user.username,
-      email: attributes.email ?? user.username,
+      username,
+      email: String(payload.email ?? username),
       role: groups.includes('admin') ? 'admin' : 'user',
       groups,
     };
   } catch {
     return null;
   }
+}
+
+export function consumeOAuthError(): string {
+  const message = window.sessionStorage.getItem(OAUTH_ERROR_STORAGE_KEY) ?? '';
+  window.sessionStorage.removeItem(OAUTH_ERROR_STORAGE_KEY);
+  return message;
 }
 
 export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {

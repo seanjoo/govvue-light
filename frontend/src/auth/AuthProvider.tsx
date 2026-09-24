@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Hub } from 'aws-amplify/utils';
 import {
   completeNewPassword,
+  consumeOAuthError,
   currentUser,
   login,
   loginWithGoogle,
@@ -33,7 +34,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [oauthError, setOAuthError] = useState('');
+  const [oauthError, setOAuthError] = useState(() => consumeOAuthError());
 
   const refresh = useCallback(async () => {
     setUser(await currentUser());
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : typeof oauthFailure === 'string'
           ? oauthFailure
           : 'Google sign-in could not be completed. Please try again.');
+      consumeOAuthError();
       setLoading(false);
     } else if (payload.event === 'signedOut') {
       setUser(null);
@@ -90,7 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const clearOAuthError = useCallback(() => setOAuthError(''), []);
+  const clearOAuthError = useCallback(() => {
+    consumeOAuthError();
+    setOAuthError('');
+  }, []);
 
   const value = useMemo(
     () => ({ user, loading, oauthError, signIn: signInUser, setNewPassword, signInWithGoogle: signInGoogle, signOut: signOutUser, clearOAuthError }),
