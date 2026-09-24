@@ -22,7 +22,8 @@ created by the application stacks:
 - the `workshop` AWS account and CLI profile;
 - the public `govvue.com` Route 53 hosted zone and registrar delegation;
 - an issued ACM certificate for `app.govvue.com` in `us-east-1`; and
-- the local `config/dev.govvue-light.yml`, including the SAM.gov API key.
+- a Google Cloud Web OAuth client configured for the Cognito callback; and
+- the local `config/dev.govvue-light.yml`, including the SAM.gov API key and Google OAuth client values.
 
 CloudFormation attaches the existing certificate and creates the
 `app.govvue.com` A and AAAA aliases. The certificate itself and the hosted zone
@@ -59,9 +60,29 @@ app_domain_name: app.govvue.com
 hosted_zone_id: Z04260832ZB8NBYSOXBA7
 acm_certificate_arn: arn:aws:acm:us-east-1:428613119099:certificate/f810f621-f8fb-449e-9f51-a793dcc69904
 cors_allowed_origin: https://app.govvue.com
+cognito_domain_prefix: govvue-light-dev-428613119099
 ```
 
-Do not print or paste `sam_api_key`. Keep the configuration file at mode
+In the Google OAuth client, use exactly:
+
+```text
+Authorized JavaScript origin:
+https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com
+
+Authorized redirect URI:
+https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com/oauth2/idpresponse
+```
+
+Import the downloaded client JSON into the local configuration:
+
+```bash
+python3 scripts/import-google-oauth-config.py \
+  --credentials /path/to/client_secret.json \
+  --config config/dev.govvue-light.yml \
+  --domain-prefix govvue-light-dev-428613119099
+```
+
+Do not print or paste `sam_api_key` or `google_oauth_client_secret`. Keep the configuration file at mode
 `0600`; it is ignored by Git.
 
 ### 3. Validate locally
@@ -96,7 +117,7 @@ application stack to exist already.
 The end-to-end command performs these operations in order:
 
 1. validates the local environment YAML;
-2. writes ordinary values to SSM `String` parameters and the SAM.gov key to a `SecureString`;
+2. writes ordinary values to SSM `String` parameters and the SAM.gov and Google OAuth secrets to `SecureString` parameters;
 3. deploys the bootstrap CloudFormation stack containing the versioned artifact bucket;
 4. runs backend tests and builds a timestamped Lambda ZIP;
 5. uploads Lambda and CloudFormation artifacts under `releases/<build-id>/`;
@@ -138,15 +159,18 @@ generates a random temporary password and sends a branded GovVue Light
 invitation from `GovVue Light <notifications@govvue.com>`. The invitation
 identifies the application, links to the sign-in page, and explains the
 first-login password change. The temporary password expires after seven days.
-The user signs in at
-`https://app.govvue.com` with that password and must replace it before
-continuing. Self-registration is disabled.
+The user can sign in at `https://app.govvue.com` with the temporary password
+and replace it, or choose Google using the same invited email address. Google
+identities are linked to the invited Cognito user, preserving the user's role
+and saved data. Uninvited Google accounts are rejected. Password users continue
+to see the Google option on the sign-in screen. Self-registration is disabled.
 
 All signed-in users can select their email address in the header to open the
 Account page and change their own password. The sign-in page also supports the
 Cognito email-code password recovery flow. Administrators can send a password
 reset from the Admin page; users who have not completed first sign-in receive a
-new generated temporary password and invitation instead.
+new generated temporary password and invitation instead. The invitation explains
+both the password setup and the matching-email Google option.
 
 The Cognito invitation and SES recipient verification are separate messages.
 The user pool uses the verified `govvue.com` SES identity with

@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import PasswordRequirements from '../components/PasswordRequirements';
@@ -7,7 +7,7 @@ import { passwordMeetsPolicy } from '../lib/passwordPolicy';
 import { runtimeConfig } from '../runtimeConfig';
 
 export default function LoginPage() {
-  const { user, loading, signIn, setNewPassword } = useAuth();
+  const { user, loading, signIn, setNewPassword, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -19,14 +19,22 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
 
   const requestedPath = (() => {
     const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
-    return from?.pathname ? `${from.pathname}${from.search || ''}` : '/search';
+    const fromPath = from?.pathname ? `${from.pathname}${from.search || ''}` : '';
+    const storedPath = window.sessionStorage.getItem('govvue.oauth.returnTo') || '';
+    const candidate = fromPath || storedPath;
+    return candidate.startsWith('/') && !candidate.startsWith('//') ? candidate : '/search';
   })();
   const creatingPassword = newPasswordRequired || resetMode === 'confirm';
   const passwordValid = passwordMeetsPolicy(password);
   const passwordsMatch = password.length > 0 && password === confirmPassword;
+
+  useEffect(() => {
+    if (!loading && user) window.sessionStorage.removeItem('govvue.oauth.returnTo');
+  }, [loading, user]);
 
   if (!loading && user) return <Navigate to={requestedPath} replace />;
 
@@ -90,6 +98,18 @@ export default function LoginPage() {
     }
   }
 
+  async function submitGoogle() {
+    setError('');
+    setMessage('');
+    setGoogleSubmitting(true);
+    try {
+      await signInWithGoogle(requestedPath);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to start Google sign-in');
+      setGoogleSubmitting(false);
+    }
+  }
+
   return (
     <main id="main-content" className="login-page">
       <div className="login-panel">
@@ -100,7 +120,7 @@ export default function LoginPage() {
         <h1>{newPasswordRequired ? 'Choose a new password' : resetMode === 'request' ? 'Reset password' : resetMode === 'confirm' ? 'Enter reset code' : 'Sign in'}</h1>
         <p className="text-base">
           {newPasswordRequired
-            ? 'Your temporary password must be replaced before continuing.'
+            ? 'Choose a permanent password below, or use your Google account instead.'
             : resetMode === 'request'
               ? 'We will send a password-reset code to your verified email address.'
               : resetMode === 'confirm'
@@ -167,6 +187,23 @@ export default function LoginPage() {
             {submitting ? 'Please wait…' : newPasswordRequired ? 'Set password' : resetMode === 'request' ? 'Send reset code' : resetMode === 'confirm' ? 'Reset password' : 'Sign in'}
           </button>
         </form>
+        {resetMode === 'none' && (
+          <>
+            <div className="login-divider" aria-hidden="true"><span>or</span></div>
+            <button
+              className="usa-button usa-button--outline width-full google-signin-button"
+              type="button"
+              disabled={submitting || googleSubmitting}
+              onClick={submitGoogle}
+            >
+              <span className="google-signin-button__mark" aria-hidden="true">G</span>
+              {googleSubmitting ? 'Opening Google…' : newPasswordRequired ? 'Use Google instead' : 'Continue with Google'}
+            </button>
+            <p className="login-google-note">
+              Use the Google account with the same email address as your GovVue Light invitation.
+            </p>
+          </>
+        )}
         {!newPasswordRequired && (
           <button
             className="usa-button usa-button--unstyled margin-top-2"

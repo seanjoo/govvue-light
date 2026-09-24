@@ -5,7 +5,8 @@
 ```text
 Browser
   ├─ HTTPS ─> CloudFront ─> private S3 website bucket
-  ├─ sign-in ─> Amazon Cognito user pool
+  ├─ password sign-in ─> Amazon Cognito user pool
+  ├─ Google sign-in ─> Cognito managed login ─> Google OAuth
   └─ JWT API request ─> API Gateway HTTP API ─> Lambda (not VPC-attached)
                                                    ├─ SAM.gov opportunity and entity HTTPS APIs
                                                    ├─ SSM Parameter Store
@@ -45,7 +46,7 @@ restartable and prevent partial feeds from being presented as complete.
 
 The bootstrap stack creates the versioned artifact bucket. The application stack creates:
 
-- a Cognito user pool and public web client;
+- a Cognito user pool, managed-login domain, Google identity provider, public web client, and pre-sign-up account-link Lambda;
 - Cognito `admin` and `user` groups, with backend authorization based on the signed `cognito:groups` token claim;
 - an API Gateway HTTP API with Cognito JWT authorization;
 - API, daily-feed, and notification Lambda functions with immutable versions and `live` aliases;
@@ -116,6 +117,7 @@ remain scoped to the authenticated user's partition key.
 - The key is not in CloudFormation, a stack parameter, Lambda environment variables, build output, or frontend code.
 - Lambda reads the secure parameter at runtime and caches it in memory for five minutes.
 - API Gateway validates Cognito JWT issuer and audience before Lambda is invoked.
+- Google sign-in is limited to verified Google email addresses that match an existing invited Cognito user. The pre-sign-up trigger links the provider to that user so the original Cognito `sub`, role groups, and DynamoDB data remain unchanged.
 - Lambda independently requires the `admin` group for every `/admin/*` operation; hiding the Admin menu is not the authorization boundary.
 - Website and cache buckets block all public access.
 - CloudFront alone can read the website bucket through signed origin access control.

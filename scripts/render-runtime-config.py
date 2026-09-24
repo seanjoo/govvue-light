@@ -13,6 +13,7 @@ def main() -> int:
     parser.add_argument("--aws-region", required=True)
     parser.add_argument("--user-pool-id", required=True)
     parser.add_argument("--user-pool-client-id", required=True)
+    parser.add_argument("--cognito-domain", required=True)
     parser.add_argument("--app-title", required=True)
     parser.add_argument("--daily-notification-default-time", required=True)
     parser.add_argument("--build-id", required=True)
@@ -22,6 +23,7 @@ def main() -> int:
         "awsRegion": args.aws_region,
         "userPoolId": args.user_pool_id,
         "userPoolClientId": args.user_pool_client_id,
+        "cognitoDomain": args.cognito_domain,
         "appTitle": args.app_title,
         "dailyNotificationDefaultTime": args.daily_notification_default_time,
         "buildId": args.build_id,

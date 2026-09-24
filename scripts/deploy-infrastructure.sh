@@ -97,6 +97,7 @@ aws cloudformation deploy \
     AppDomainName="$SSM_PREFIX/AppDomainName" \
     HostedZoneId="$SSM_PREFIX/HostedZoneId" \
     AcmCertificateArn="$SSM_PREFIX/AcmCertificateArn" \
+    CognitoDomainPrefix="$SSM_PREFIX/CognitoDomainPrefix" \
     DailyFeedScheduleExpression="$SSM_PREFIX/DailyFeedScheduleExpression" \
     DailyFeedScheduleTimezone="$SSM_PREFIX/DailyFeedTimezone" \
     NotificationFromEmail="$SSM_PREFIX/NotificationFromEmail" \

@@ -28,6 +28,7 @@ ensure_aws_session "$PROFILE" "$REGION"
 API_BASE_URL="$(stack_output "$APP_STACK" ApiEndpoint "$PROFILE" "$REGION")"
 USER_POOL_ID="$(stack_output "$APP_STACK" CognitoUserPoolId "$PROFILE" "$REGION")"
 USER_POOL_CLIENT_ID="$(stack_output "$APP_STACK" CognitoClientId "$PROFILE" "$REGION")"
+COGNITO_DOMAIN="$(stack_output "$APP_STACK" CognitoDomain "$PROFILE" "$REGION")"
 WEBSITE_BUCKET="$(stack_output "$APP_STACK" WebsiteBucketName "$PROFILE" "$REGION")"
 DISTRIBUTION_ID="$(stack_output "$APP_STACK" CloudFrontDistributionId "$PROFILE" "$REGION")"
 ARTIFACT_BUCKET="$(stack_output "$APP_STACK" ArtifactBucketName "$PROFILE" "$REGION")"
@@ -46,6 +47,7 @@ FRONTEND_PACKAGE="$(BUILD_ID="$BUILD_ID" "$PROJECT_ROOT/scripts/build-frontend.s
   --aws-region "$REGION" \
   --user-pool-id "$USER_POOL_ID" \
   --user-pool-client-id "$USER_POOL_CLIENT_ID" \
+  --cognito-domain "$COGNITO_DOMAIN" \
   --app-title "$APP_TITLE" \
   --daily-notification-default-time "$DAILY_NOTIFICATION_DEFAULT_TIME")"
 

@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Hub } from 'aws-amplify/utils';
 import {
   completeNewPassword,
   currentUser,
   login,
+  loginWithGoogle,
   logout,
   type LoginResult,
 } from './cognito';
@@ -20,6 +22,7 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<LoginResult>;
   setNewPassword: (password: string) => Promise<LoginResult>;
+  signInWithGoogle: (returnTo: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -37,6 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
+  useEffect(() => Hub.listen('auth', ({ payload }) => {
+    if (payload.event === 'signedIn' || payload.event === 'tokenRefresh') {
+      refresh().finally(() => setLoading(false));
+    } else if (payload.event === 'signedOut') {
+      setUser(null);
+    }
+  }), [refresh]);
+
   const signInUser = useCallback(async (email: string, password: string) => {
     const result = await login(email, password);
     if (result.isSignedIn) await refresh();
@@ -49,14 +60,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result;
   }, [refresh]);
 
+  const signInGoogle = useCallback(async (returnTo: string) => {
+    setLoading(true);
+    try {
+      await loginWithGoogle(returnTo);
+    } catch (error) {
+      setLoading(false);
+      throw error;
+    }
+  }, []);
+
   const signOutUser = useCallback(async () => {
     await logout();
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, signIn: signInUser, setNewPassword, signOut: signOutUser }),
-    [user, loading, signInUser, setNewPassword, signOutUser],
+    () => ({ user, loading, signIn: signInUser, setNewPassword, signInWithGoogle: signInGoogle, signOut: signOutUser }),
+    [user, loading, signInUser, setNewPassword, signInGoogle, signOutUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

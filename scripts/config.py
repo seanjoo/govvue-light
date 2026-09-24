@@ -21,6 +21,9 @@ REQUIRED = (
     "app_domain_name",
     "hosted_zone_id",
     "acm_certificate_arn",
+    "cognito_domain_prefix",
+    "google_oauth_client_id",
+    "google_oauth_client_secret",
     "sam_api_key",
     "sam_opportunities_api",
     "sam_entities_api",
@@ -62,6 +65,12 @@ def validate(data: dict[str, Any]) -> list[str]:
     certificate_arn = str(data.get("acm_certificate_arn", ""))
     if not certificate_arn.startswith("arn:aws:acm:us-east-1:"):
         errors.append("acm_certificate_arn must be an ACM certificate in us-east-1")
+    domain_prefix = str(data.get("cognito_domain_prefix", ""))
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", domain_prefix):
+        errors.append("cognito_domain_prefix must be 1-63 lowercase letters, numbers, or hyphens")
+    client_id = str(data.get("google_oauth_client_id", ""))
+    if client_id and not client_id.endswith(".apps.googleusercontent.com"):
+        errors.append("google_oauth_client_id must be a Google Web OAuth client ID")
 
     for key in (
         "search_cache_ttl_seconds",
@@ -170,8 +179,9 @@ def main() -> int:
             return 0
         if args.command == "json":
             redacted = dict(data)
-            if "sam_api_key" in redacted:
-                redacted["sam_api_key"] = "<redacted>"
+            for secret_key in ("sam_api_key", "google_oauth_client_secret"):
+                if secret_key in redacted:
+                    redacted[secret_key] = "<redacted>"
             print(json.dumps(redacted, indent=2, sort_keys=True))
             return 0
     except (ValueError, KeyError, yaml.YAMLError) as exc:

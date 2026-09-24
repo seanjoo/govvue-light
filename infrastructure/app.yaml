@@ -27,6 +27,9 @@ Parameters:
   AcmCertificateArn:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the us-east-1 ACM certificate ARN.
+  CognitoDomainPrefix:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the Cognito managed-login domain prefix.
   DailyFeedScheduleExpression:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the EventBridge schedule expression.
@@ -158,15 +161,94 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  AuthLinkFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-auth-link'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LinkInvitedGoogleUsers
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: WriteLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${Environment}-auth-link:*'
+              - Sid: LinkCognitoIdentity
+                Effect: Allow
+                Action:
+                  - cognito-idp:AdminLinkProviderForUser
+                  - cognito-idp:AdminUpdateUserAttributes
+                  - cognito-idp:ListUsers
+                Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${AWS::Region}_*'
+
+  AuthLinkFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-auth-link'
+      Description: !Sub 'GovVue Light invited-user Google account linking build ${BuildId}'
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: auth_link.lambda_handler
+      Role: !GetAtt AuthLinkFunctionRole.Arn
+      MemorySize: 128
+      Timeout: 10
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Ref LambdaArtifactKey
+        S3ObjectVersion: !If
+          - HasLambdaArtifactVersion
+          - !Ref LambdaArtifactVersion
+          - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BuildId
+          Value: !Ref BuildId
+
+  AuthLinkFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-auth-link'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  AuthLinkInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AuthLinkFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+
   UserPool:
     Type: AWS::Cognito::UserPool
-    DependsOn: NotificationEmailIdentity
+    DependsOn:
+      - AuthLinkInvokePermission
+      - NotificationEmailIdentity
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
       UserPoolName: !Sub '${ProjectName}-${Environment}'
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
+      LambdaConfig:
+        PreSignUp: !GetAtt AuthLinkFunction.Arn
       EmailConfiguration:
         EmailSendingAccount: DEVELOPER
         From: !Sub 'GovVue Light <${NotificationFromEmail}>'
@@ -181,7 +263,11 @@ Resources:
             <p>An administrator created a GovVue Light account for you. GovVue Light helps you search and save SAM.gov opportunities and entities and manage daily opportunity notifications.</p>
             <p><strong>Sign in:</strong> <a href="https://${AppDomainName}">https://${AppDomainName}</a></p>
             <p><strong>Username:</strong> {username}<br><strong>Temporary password:</strong> {####}</p>
-            <p>On your first sign-in, you will be asked to create a permanent password. This temporary password expires after seven days.</p>
+            <p>Choose either sign-in method:</p>
+            <ul>
+              <li><strong>Google:</strong> Select Continue with Google and use the Google account with this same email address. You do not need the temporary password.</li>
+              <li><strong>Password:</strong> Sign in with the temporary password above, then create a permanent password. The temporary password expires after seven days.</li>
+            </ul>
             <p>If you were not expecting this invitation, you can ignore this email or contact your GovVue Light administrator.</p>
       VerificationMessageTemplate:
         DefaultEmailOption: CONFIRM_WITH_CODE
@@ -207,8 +293,105 @@ Resources:
         Project: !Ref ProjectName
         Environment: !Ref Environment
 
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref CognitoDomainPrefix
+      UserPoolId: !Ref UserPool
+
+  AuthConfigFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-auth-config'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ConfigureGoogleIdentityProvider
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: WriteLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${Environment}-auth-config:*'
+              - Sid: ReadGoogleOAuthConfiguration
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${Environment}/GoogleOAuthClientId'
+                  - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${Environment}/GoogleOAuthClientSecret'
+              - Sid: DecryptGoogleOAuthSecret
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+              - Sid: ManageGoogleIdentityProvider
+                Effect: Allow
+                Action:
+                  - cognito-idp:CreateIdentityProvider
+                  - cognito-idp:DeleteIdentityProvider
+                  - cognito-idp:DescribeIdentityProvider
+                  - cognito-idp:UpdateIdentityProvider
+                Resource: !GetAtt UserPool.Arn
+
+  AuthConfigFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-auth-config'
+      Description: !Sub 'GovVue Light Cognito identity provider configuration build ${BuildId}'
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: auth_config.lambda_handler
+      Role: !GetAtt AuthConfigFunctionRole.Arn
+      MemorySize: 128
+      Timeout: 30
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Ref LambdaArtifactKey
+        S3ObjectVersion: !If
+          - HasLambdaArtifactVersion
+          - !Ref LambdaArtifactVersion
+          - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          CONFIG_PREFIX: !Sub '/${ProjectName}/${Environment}'
+          LOG_LEVEL: INFO
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: BuildId
+          Value: !Ref BuildId
+
+  AuthConfigFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-auth-config'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  GoogleIdentityProvider:
+    Type: Custom::GoogleIdentityProvider
+    Properties:
+      ServiceToken: !GetAtt AuthConfigFunction.Arn
+      UserPoolId: !Ref UserPool
+      ProviderName: Google
+      ConfigurationVersion: !Ref BuildId
+
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
+    DependsOn: GoogleIdentityProvider
     Properties:
       ClientName: !Sub '${ProjectName}-${Environment}-web'
       UserPoolId: !Ref UserPool
@@ -219,6 +402,20 @@ Resources:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+        - Google
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - !Sub 'https://${AppDomainName}/login'
+      LogoutURLs:
+        - !Sub 'https://${AppDomainName}/login'
       AccessTokenValidity: 1
       IdTokenValidity: 1
       RefreshTokenValidity: 30
@@ -1004,6 +1201,8 @@ Outputs:
     Value: !Ref UserPoolClient
   CognitoUserPoolId:
     Value: !Ref UserPool
+  CognitoDomain:
+    Value: !Sub 'https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com'
   SearchCacheBucketName:
     Value: !Ref SearchCacheBucket
   DailyFeedBucketName:

@@ -3,6 +3,7 @@ export interface RuntimeConfig {
   awsRegion: string;
   userPoolId: string;
   userPoolClientId: string;
+  cognitoDomain: string;
   appTitle: string;
   buildId: string;
   dailyNotificationDefaultTime: string;
@@ -21,6 +22,7 @@ export const runtimeConfig: RuntimeConfig = {
   awsRegion: raw.awsRegion ?? 'us-east-1',
   userPoolId: raw.userPoolId ?? '',
   userPoolClientId: raw.userPoolClientId ?? '',
+  cognitoDomain: raw.cognitoDomain ?? '',
   appTitle: raw.appTitle ?? 'GovVue Light',
   buildId: raw.buildId ?? 'local',
   dailyNotificationDefaultTime: raw.dailyNotificationDefaultTime ?? '06:15',

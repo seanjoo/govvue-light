@@ -20,6 +20,20 @@ python3 scripts/import-govvue-config.py \
 
 The import uses mode `0600` and never prints the key.
 
+Import a downloaded Google Web OAuth client without printing its secret:
+
+```bash
+python3 scripts/import-google-oauth-config.py \
+  --credentials /path/to/client_secret.json \
+  --config config/dev.govvue-light.yml \
+  --domain-prefix govvue-light-dev-428613119099
+```
+
+The Google client must authorize this JavaScript origin:
+`https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com` and
+this redirect URI:
+`https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`.
+
 ## YAML to SSM mapping
 
 The default prefix is `/govvue-light/dev/`.
@@ -33,6 +47,9 @@ The default prefix is `/govvue-light/dev/`.
 | `app_domain_name` | `AppDomainName` | `String` | CloudFormation/CloudFront and Route 53 |
 | `hosted_zone_id` | `HostedZoneId` | `String` | CloudFormation/Route 53 |
 | `acm_certificate_arn` | `AcmCertificateArn` | `String` | CloudFormation/CloudFront |
+| `cognito_domain_prefix` | `CognitoDomainPrefix` | `String` | CloudFormation/Cognito managed login |
+| `google_oauth_client_id` | `GoogleOAuthClientId` | `String` | CloudFormation/Cognito Google provider |
+| `google_oauth_client_secret` | `GoogleOAuthClientSecret` | `SecureString` | CloudFormation/Cognito Google provider |
 | `frontend_title` | `FrontendTitle` | `String` | Frontend deployment runtime config |
 | `cors_allowed_origin` | `CorsAllowedOrigin` | `String` | CloudFormation/API Gateway |
 | `search_cache_ttl_seconds` | `SearchCacheTtlSeconds` | `String` | Lambda runtime |
@@ -72,7 +89,17 @@ Write or overwrite the parameters:
 ./scripts/sync-config.sh --env dev
 ```
 
-The command prints only the name and type of the secure parameter.
+The command prints only the name and type of secure parameters.
+
+## Google OAuth rotation
+
+1. Download the replacement Google Web OAuth client JSON.
+2. Run `scripts/import-google-oauth-config.py` with the environment config and its existing Cognito domain prefix.
+3. Run `./scripts/deploy.sh --env dev --component infra`.
+
+A CloudFormation custom resource reads the Google client secret directly from
+SSM SecureString and applies it to Cognito. The secret is never stored in Git,
+a plaintext stack parameter, frontend code, or deployment output.
 
 ## API-key rotation
 

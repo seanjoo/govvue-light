@@ -1,4 +1,5 @@
 import { Amplify } from 'aws-amplify';
+import 'aws-amplify/auth/enable-oauth-listener';
 import {
   confirmResetPassword,
   confirmSignIn,
@@ -7,6 +8,7 @@ import {
   getCurrentUser,
   resetPassword,
   signIn,
+  signInWithRedirect,
   signOut,
   updatePassword,
   type SignInOutput,
@@ -18,7 +20,16 @@ Amplify.configure({
     Cognito: {
       userPoolId: runtimeConfig.userPoolId,
       userPoolClientId: runtimeConfig.userPoolClientId,
-      loginWith: { email: true },
+      loginWith: {
+        email: true,
+        oauth: {
+          domain: runtimeConfig.cognitoDomain.replace(/^https?:\/\//, ''),
+          scopes: ['email', 'openid', 'profile'],
+          redirectSignIn: [`${window.location.origin}/login`],
+          redirectSignOut: [`${window.location.origin}/login`],
+          responseType: 'code',
+        },
+      },
     },
   },
 });
@@ -42,7 +53,18 @@ export async function completeNewPassword(password: string): Promise<LoginResult
   return confirmSignIn({ challengeResponse: password });
 }
 
+export async function loginWithGoogle(returnTo: string): Promise<void> {
+  window.sessionStorage.setItem('govvue.oauth.returnTo', returnTo);
+  try {
+    await signOut();
+  } catch {
+    // A pending temporary-password challenge has no authenticated session.
+  }
+  await signInWithRedirect({ provider: 'Google' });
+}
+
 export async function logout(): Promise<void> {
+  window.sessionStorage.removeItem('govvue.oauth.returnTo');
   await signOut();
 }
 

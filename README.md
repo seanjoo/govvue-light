@@ -7,7 +7,7 @@ The frontend uses the U.S. Web Design System (USWDS). The deployment is serverle
 ## Included
 
 - React 19, TypeScript, Vite, and USWDS frontend
-- Cognito email/password authentication with `admin` and `user` roles, emailed temporary passwords, self-service password changes, and an administrator user-management screen
+- Cognito email/password or Google authentication with invited-user account linking, `admin` and `user` roles, emailed temporary passwords, self-service password changes, and an administrator user-management screen
 - API Gateway HTTP API with a Cognito JWT authorizer
 - Python Lambda API packaged separately from CloudFormation
 - Direct, active-only SAM.gov search with hierarchical 2022 NAICS selection, multi-value filters, converged results, 1,000-record upstream caching, and 25-record UI pages
@@ -20,7 +20,7 @@ The frontend uses the U.S. Web Design System (USWDS). The deployment is serverle
 - DynamoDB on-demand storage and private S3 search cache
 - Private S3 website origin behind CloudFront
 - `app.govvue.com` Route 53 aliases managed by CloudFormation, using the existing workshop ACM certificate
-- YAML-to-SSM configuration, including a SecureString SAM.gov API key
+- YAML-to-SSM configuration, including SecureString SAM.gov and Google OAuth secrets
 - Timestamped Lambda, frontend, and CloudFormation release artifacts
 - Component deployment scripts and one end-to-end deployment command
 
