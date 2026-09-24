@@ -15,6 +15,10 @@ import EntitySearchPage from './pages/EntitySearchPage';
 import SavedEntitiesPage from './pages/SavedEntitiesPage';
 import SavedEntitySearchesPage from './pages/SavedEntitySearchesPage';
 import EntityDetailPage from './pages/EntityDetailPage';
+import PublicLayout from './components/PublicLayout';
+import AboutPage from './pages/AboutPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
 
 function Protected() {
   const { user, loading } = useAuth();
@@ -27,6 +31,11 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route element={<PublicLayout />}>
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+      </Route>
       <Route element={<Protected />}>
         <Route element={<Layout />}>
           <Route path="/search" element={<SearchPage />} />

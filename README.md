@@ -8,6 +8,7 @@ The frontend uses the U.S. Web Design System (USWDS). The deployment is serverle
 
 - React 19, TypeScript, Vite, and USWDS frontend
 - Cognito email/password or Google authentication with invited-user account linking, `admin` and `user` roles, emailed temporary passwords, self-service password changes, and an administrator user-management screen
+- Public About, Privacy, and Terms pages for Google OAuth branding and user disclosure
 - API Gateway HTTP API with a Cognito JWT authorizer
 - Python Lambda API packaged separately from CloudFormation
 - Direct, active-only SAM.gov search with hierarchical 2022 NAICS selection, multi-value filters, converged results, 1,000-record upstream caching, and 25-record UI pages

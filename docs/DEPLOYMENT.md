@@ -73,6 +73,19 @@ Authorized redirect URI:
 https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com/oauth2/idpresponse
 ```
 
+The application publishes these unauthenticated pages for Google OAuth branding:
+
+```text
+Application home page:          https://app.govvue.com/about
+Application privacy policy:     https://app.govvue.com/privacy
+Application terms of service:   https://app.govvue.com/terms
+Authorized domain:              govvue.com
+```
+
+Verify `govvue.com` as a DNS Domain property in Google Search Console before
+requesting brand verification. Add Google's verification TXT value alongside
+the existing apex TXT values; do not replace the Purelymail or SPF values.
+
 Import the downloaded client JSON into the local configuration:
 
 ```bash

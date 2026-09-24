@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import PasswordRequirements from '../components/PasswordRequirements';
 import { beginPasswordReset, finishPasswordReset } from '../auth/cognito';
@@ -218,6 +218,11 @@ export default function LoginPage() {
             }}
           >{resetMode === 'none' ? 'Forgot password?' : 'Back to sign in'}</button>
         )}
+        <nav className="login-public-links" aria-label="Public information">
+          <Link to="/about">About</Link>
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link>
+        </nav>
       </div>
     </main>
   );

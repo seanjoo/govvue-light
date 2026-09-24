@@ -175,8 +175,13 @@ export default function Layout() {
         <Outlet />
       </main>
       <footer className="app-footer">
-        <div className="grid-container">
-          Personal opportunity and entity research tool. Data is provided by SAM.gov.
+        <div className="grid-container app-footer__inner">
+          <span>Personal opportunity and entity research tool. Data is provided by SAM.gov.</span>
+          <nav aria-label="Footer navigation">
+            <NavLink to="/about">About</NavLink>
+            <NavLink to="/privacy">Privacy</NavLink>
+            <NavLink to="/terms">Terms</NavLink>
+          </nav>
         </div>
       </footer>
     </div>

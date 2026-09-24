@@ -32,6 +32,9 @@ a { color: #005ea8; }
 .app-account__email.active { text-decoration: underline; }
 .app-main { width: 100%; padding-top: 2.5rem; padding-bottom: 4rem; flex: 1; }
 .app-footer { padding: 1.5rem 0; color: #454545; background: #dfe1e2; font-size: .9rem; }
+.app-footer__inner, .public-footer__inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem 2rem; }
+.app-footer nav, .public-footer nav { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; }
+.app-footer nav a { color: #005ea8; }
 .page-heading, .section-heading, .results-summary, .opportunity-card__heading, .detail-action-bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .page-heading h1 { margin-top: .2rem; }
 .page-heading__actions { display: flex; align-items: center; gap: .75rem; }
@@ -192,6 +195,30 @@ a { color: #005ea8; }
 .google-signin-button:hover, .google-signin-button:focus { color: #1b1b1b; background: #f0f0f0; box-shadow: inset 0 0 0 2px #1b1b1b; }
 .google-signin-button__mark { display: inline-grid; place-items: center; width: 1.35rem; height: 1.35rem; border: 1px solid #c9c9c9; border-radius: 50%; color: #1a73e8; background: #fff; font-family: Arial, sans-serif; font-size: .85rem; font-weight: 700; }
 .login-google-note { margin: .75rem 0 0; color: #565c65; font-size: .86rem; line-height: 1.35; text-align: center; }
+.login-public-links { display: flex; justify-content: center; gap: .75rem 1.25rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #dfe1e2; font-size: .88rem; }
+.public-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.public-header { background: #fff; border-bottom: 4px solid #005ea8; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.public-header__inner { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 2rem; }
+.public-nav { display: flex; align-items: center; gap: .25rem; }
+.public-nav > a:not(.usa-button) { padding: .8rem 1rem; color: #3d4551; font-weight: 700; text-decoration: none; }
+.public-nav > a:not(.usa-button):hover, .public-nav > a:not(.usa-button):focus, .public-nav > a:not(.usa-button).active { color: #005ea8; background: #e7f6f8; }
+.public-nav .usa-button { margin: 0 0 0 .75rem; }
+.public-main { width: 100%; flex: 1; padding-top: 3rem; padding-bottom: 4rem; }
+.public-content { max-width: 52rem; margin: 0 auto; font-size: 1.05rem; line-height: 1.7; }
+.public-content h1 { margin: .35rem 0 1rem; font-size: clamp(2.5rem, 6vw, 4rem); line-height: 1.05; }
+.public-content h2 { margin-top: 2.5rem; color: #162e51; }
+.public-content li + li { margin-top: .6rem; }
+.public-hero { margin-bottom: 3rem; padding: 2.5rem; border-left: 6px solid #005ea8; background: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+.public-hero__lead { max-width: 44rem; color: #3d4551; font-size: 1.35rem; line-height: 1.5; }
+.public-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.75rem; }
+.public-actions .usa-button { margin: 0; }
+.public-callout { margin-top: 3rem; padding: 1.5rem 1.75rem; border-left: 5px solid #73b3e7; background: #e7f6f8; }
+.public-callout h2 { margin-top: 0; }
+.public-callout p { margin-bottom: 0; }
+.public-policy { padding: 2.5rem 3rem; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.public-policy__date { color: #565c65; font-size: .95rem; }
+.public-policy code { padding: .05rem .25rem; background: #f0f0f0; font-size: .92em; }
+.public-footer { margin-top: auto; }
 
 @media (max-width: 1200px) {
   .app-header__inner { flex-wrap: wrap; padding-top: 1rem; padding-bottom: 1rem; gap: .5rem 1rem; }
@@ -258,4 +285,12 @@ a { color: #005ea8; }
   .naics-dialog__footer { align-items: flex-start; flex-direction: column; }
   .naics-dialog__footer > div { width: 100%; flex-wrap: wrap; }
   .entity-date-pair > div { grid-template-columns: 1fr; gap: .25rem; }
+  .public-header__inner { align-items: flex-start; flex-direction: column; gap: .65rem; padding-top: .75rem; padding-bottom: .75rem; }
+  .public-nav { width: 100%; flex-wrap: wrap; }
+  .public-nav > a:not(.usa-button) { padding: .65rem .75rem; }
+  .public-nav .usa-button { margin-left: auto; }
+  .public-main { padding-top: 1.5rem; padding-bottom: 2.5rem; }
+  .public-hero, .public-policy { padding: 1.5rem; }
+  .public-content h1 { font-size: 2.5rem; }
+  .app-footer__inner, .public-footer__inner { align-items: flex-start; flex-direction: column; }
 }
