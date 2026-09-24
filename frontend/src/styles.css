@@ -188,6 +188,8 @@ a { color: #005ea8; }
 .history-list span { color: #565c65; font-size: .9rem; white-space: nowrap; }
 .login-page { min-height: 100vh; display: grid; place-items: center; padding: 2rem; background: linear-gradient(135deg,#162e51,#005ea8); }
 .login-panel { width: min(100%, 28rem); padding: 2.5rem; background: #fff; border-radius: 6px; box-shadow: 0 12px 35px rgba(0,0,0,.25); }
+.login-panel > .usa-form { max-width: none; }
+.login-panel > .usa-form .usa-input { width: 100%; max-width: none; }
 .app-brand--login { margin-bottom: 2rem; }
 .login-divider { display: flex; align-items: center; gap: .75rem; margin: 1.25rem 0; color: #71767a; font-size: .9rem; text-align: center; }
 .login-divider::before, .login-divider::after { height: 1px; flex: 1; background: #dfe1e2; content: ''; }
