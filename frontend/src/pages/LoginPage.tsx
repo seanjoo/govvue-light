@@ -7,7 +7,7 @@ import { passwordMeetsPolicy } from '../lib/passwordPolicy';
 import { runtimeConfig } from '../runtimeConfig';
 
 export default function LoginPage() {
-  const { user, loading, signIn, setNewPassword, signInWithGoogle } = useAuth();
+  const { user, loading, oauthError, signIn, setNewPassword, signInWithGoogle, clearOAuthError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -41,6 +41,7 @@ export default function LoginPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
+    clearOAuthError();
     setMessage('');
     if (creatingPassword && !passwordValid) {
       setError('The new password does not meet all password requirements.');
@@ -100,6 +101,7 @@ export default function LoginPage() {
 
   async function submitGoogle() {
     setError('');
+    clearOAuthError();
     setMessage('');
     setGoogleSubmitting(true);
     try {
@@ -127,7 +129,7 @@ export default function LoginPage() {
                 ? 'Enter the emailed code and choose a new password.'
             : 'Search and save active federal contract opportunities.'}
         </p>
-        {error && <div className="usa-alert usa-alert--error" role="alert"><div className="usa-alert__body"><p className="usa-alert__text">{error}</p></div></div>}
+        {(error || oauthError) && <div className="usa-alert usa-alert--error" role="alert"><div className="usa-alert__body"><p className="usa-alert__text">{error || oauthError}</p></div></div>}
         {message && <div className="usa-alert usa-alert--info" role="status"><div className="usa-alert__body"><p className="usa-alert__text">{message}</p></div></div>}
         <form className="usa-form" onSubmit={submit}>
           {!newPasswordRequired && resetMode !== 'confirm' && (
@@ -196,8 +198,8 @@ export default function LoginPage() {
               disabled={submitting || googleSubmitting}
               onClick={submitGoogle}
             >
-              <span className="google-signin-button__mark" aria-hidden="true">G</span>
-              {googleSubmitting ? 'Opening Google…' : newPasswordRequired ? 'Use Google instead' : 'Continue with Google'}
+              <img className="google-signin-button__mark" src="/google-g-logo.png" alt="" aria-hidden="true" />
+              <span>{googleSubmitting ? 'Opening Google…' : newPasswordRequired ? 'Use Google instead' : 'Continue with Google'}</span>
             </button>
             <p className="login-google-note">
               Use the Google account with the same email address as your GovVue Light invitation.

@@ -193,9 +193,10 @@ a { color: #005ea8; }
 .app-brand--login { margin-bottom: 2rem; }
 .login-divider { display: flex; align-items: center; gap: .75rem; margin: 1.25rem 0; color: #71767a; font-size: .9rem; text-align: center; }
 .login-divider::before, .login-divider::after { height: 1px; flex: 1; background: #dfe1e2; content: ''; }
-.google-signin-button { display: flex; align-items: center; justify-content: center; gap: .65rem; margin: 0; color: #1b1b1b; background: #fff; box-shadow: inset 0 0 0 2px #565c65; }
-.google-signin-button:hover, .google-signin-button:focus { color: #1b1b1b; background: #f0f0f0; box-shadow: inset 0 0 0 2px #1b1b1b; }
-.google-signin-button__mark { display: inline-grid; place-items: center; width: 1.35rem; height: 1.35rem; border: 1px solid #c9c9c9; border-radius: 50%; color: #1a73e8; background: #fff; font-family: Arial, sans-serif; font-size: .85rem; font-weight: 700; }
+.google-signin-button { display: grid; grid-template-columns: 20px 1fr 20px; align-items: center; gap: 10px; min-height: 40px; margin: 0; padding: 0 12px; border: 1px solid #747775; border-radius: 4px; color: #1f1f1f; background: #fff; box-shadow: none; font: 500 14px/20px "Google Sans", Roboto, Arial, sans-serif; }
+.google-signin-button::after { width: 20px; height: 20px; content: ''; }
+.google-signin-button:hover, .google-signin-button:focus { border-color: #747775; color: #1f1f1f; background: #f8f9fa; box-shadow: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15); }
+.google-signin-button__mark { display: block; width: 20px; height: 20px; }
 .login-google-note { margin: .75rem 0 0; color: #565c65; font-size: .86rem; line-height: 1.35; text-align: center; }
 .login-public-links { display: flex; justify-content: center; gap: .75rem 1.25rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #dfe1e2; font-size: .88rem; }
 .public-shell { min-height: 100vh; display: flex; flex-direction: column; }

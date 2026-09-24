@@ -20,10 +20,12 @@ interface User {
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  oauthError: string;
   signIn: (email: string, password: string) => Promise<LoginResult>;
   setNewPassword: (password: string) => Promise<LoginResult>;
   signInWithGoogle: (returnTo: string) => Promise<void>;
   signOut: () => Promise<void>;
+  clearOAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -31,6 +33,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [oauthError, setOAuthError] = useState('');
 
   const refresh = useCallback(async () => {
     setUser(await currentUser());
@@ -41,8 +44,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   useEffect(() => Hub.listen('auth', ({ payload }) => {
-    if (payload.event === 'signedIn' || payload.event === 'tokenRefresh') {
+    if (payload.event === 'signedIn' || payload.event === 'signInWithRedirect' || payload.event === 'tokenRefresh') {
+      setOAuthError('');
+      setLoading(true);
       refresh().finally(() => setLoading(false));
+    } else if (payload.event === 'signInWithRedirect_failure') {
+      const data = payload.data as { error?: unknown } | undefined;
+      const oauthFailure = data?.error;
+      setOAuthError(oauthFailure instanceof Error
+        ? oauthFailure.message
+        : typeof oauthFailure === 'string'
+          ? oauthFailure
+          : 'Google sign-in could not be completed. Please try again.');
+      setLoading(false);
     } else if (payload.event === 'signedOut') {
       setUser(null);
     }
@@ -61,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const signInGoogle = useCallback(async (returnTo: string) => {
+    setOAuthError('');
     setLoading(true);
     try {
       await loginWithGoogle(returnTo);
@@ -75,9 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const clearOAuthError = useCallback(() => setOAuthError(''), []);
+
   const value = useMemo(
-    () => ({ user, loading, signIn: signInUser, setNewPassword, signInWithGoogle: signInGoogle, signOut: signOutUser }),
-    [user, loading, signInUser, setNewPassword, signInGoogle, signOutUser],
+    () => ({ user, loading, oauthError, signIn: signInUser, setNewPassword, signInWithGoogle: signInGoogle, signOut: signOutUser, clearOAuthError }),
+    [user, loading, oauthError, signInUser, setNewPassword, signInGoogle, signOutUser, clearOAuthError],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

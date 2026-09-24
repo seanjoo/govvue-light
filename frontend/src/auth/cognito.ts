@@ -55,11 +55,6 @@ export async function completeNewPassword(password: string): Promise<LoginResult
 
 export async function loginWithGoogle(returnTo: string): Promise<void> {
   window.sessionStorage.setItem('govvue.oauth.returnTo', returnTo);
-  try {
-    await signOut();
-  } catch {
-    // A pending temporary-password challenge has no authenticated session.
-  }
   await signInWithRedirect({ provider: 'Google' });
 }
 
