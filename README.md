@@ -20,7 +20,7 @@ The frontend uses the U.S. Web Design System (USWDS). The deployment is serverle
 - Editable daily notifications with per-notification Eastern-time schedules, shared SAM.gov feed ingestion, result history, and SES email
 - DynamoDB on-demand storage and private S3 search cache
 - Private S3 website origin behind CloudFront
-- `app.govvue.com` Route 53 aliases managed by CloudFormation, using the existing workshop ACM certificate
+- `app.govvue.com` application and `auth.govvue.com` Cognito Route 53 aliases managed by CloudFormation, using workshop ACM certificates
 - YAML-to-SSM configuration, including SecureString SAM.gov and Google OAuth secrets
 - Timestamped Lambda, frontend, and CloudFormation release artifacts
 - Component deployment scripts and one end-to-end deployment command
@@ -48,10 +48,10 @@ No AWS resources are deployed merely by building or validating the project.
 
 All application deployment commands use only the `workshop` AWS profile.
 
-The ACM certificate, `govvue.com` hosted zone, domain delegation, local YAML,
+The ACM certificates, `govvue.com` hosted zone, domain delegation, local YAML,
 SSM synchronization, release uploads, frontend publication, and Cognito user
 creation are prerequisites or script-managed operations. Runtime application
-infrastructure and the `app.govvue.com` A/AAAA aliases are CloudFormation-managed.
+infrastructure and the `app.govvue.com` and `auth.govvue.com` A/AAAA aliases are CloudFormation-managed.
 
 ## Documentation
 

@@ -6,7 +6,8 @@ aws_region: us-east-1
 app_domain_name: app.govvue.com
 hosted_zone_id: Z00000000000000000000
 acm_certificate_arn: arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000
-cognito_domain_prefix: govvue-light-dev-123456789012
+cognito_domain_name: auth.govvue.com
+cognito_certificate_arn: arn:aws:acm:us-east-1:123456789012:certificate/11111111-1111-1111-1111-111111111111
 
 # Google OAuth values are imported from the downloaded Web application client
 # JSON. The secret is written to SSM as a SecureString and is not passed as a

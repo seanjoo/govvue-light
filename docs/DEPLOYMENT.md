@@ -21,13 +21,13 @@ created by the application stacks:
 
 - the `workshop` AWS account and CLI profile;
 - the public `govvue.com` Route 53 hosted zone and registrar delegation;
-- an issued ACM certificate for `app.govvue.com` in `us-east-1`; and
+- issued ACM certificates for `app.govvue.com` and `auth.govvue.com` in `us-east-1`;
 - a Google Cloud Web OAuth client configured for the Cognito callback; and
 - the local `config/dev.govvue-light.yml`, including the SAM.gov API key and Google OAuth client values.
 
-CloudFormation attaches the existing certificate and creates the
-`app.govvue.com` A and AAAA aliases. The certificate itself and the hosted zone
-remain external prerequisites.
+CloudFormation attaches the existing certificates and creates the
+`app.govvue.com` and `auth.govvue.com` A and AAAA aliases. The certificates
+themselves and the hosted zone remain external prerequisites.
 
 CloudFormation also creates the SES `govvue.com` identity and its Route 53 DKIM
 records. SES production-access approval is not a CloudFormation resource. The
@@ -59,18 +59,19 @@ aws_region: us-east-1
 app_domain_name: app.govvue.com
 hosted_zone_id: Z04260832ZB8NBYSOXBA7
 acm_certificate_arn: arn:aws:acm:us-east-1:428613119099:certificate/f810f621-f8fb-449e-9f51-a793dcc69904
+cognito_domain_name: auth.govvue.com
+cognito_certificate_arn: arn:aws:acm:us-east-1:428613119099:certificate/c95d7e53-6862-415a-8167-0b75af11e2ec
 cors_allowed_origin: https://app.govvue.com
-cognito_domain_prefix: govvue-light-dev-428613119099
 ```
 
 In the Google OAuth client, use exactly:
 
 ```text
 Authorized JavaScript origin:
-https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com
+https://auth.govvue.com
 
 Authorized redirect URI:
-https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com/oauth2/idpresponse
+https://auth.govvue.com/oauth2/idpresponse
 ```
 
 The application publishes these unauthenticated pages for Google OAuth branding:
@@ -92,7 +93,7 @@ Import the downloaded client JSON into the local configuration:
 python3 scripts/import-google-oauth-config.py \
   --credentials /path/to/client_secret.json \
   --config config/dev.govvue-light.yml \
-  --domain-prefix govvue-light-dev-428613119099
+  --domain-name auth.govvue.com
 ```
 
 Do not print or paste `sam_api_key` or `google_oauth_client_secret`. Keep the configuration file at mode
@@ -191,7 +192,7 @@ The user pool uses the verified `govvue.com` SES identity with
 recovery, and verification messages. These account messages use the workshop
 SES quota and sending-access status.
 
-The application stack configures `app.govvue.com` as the CloudFront alternate domain name, attaches the workshop ACM certificate, and creates Route 53 A and AAAA alias records in the workshop hosted zone.
+The application stack configures `app.govvue.com` as the application CloudFront alternate domain and `auth.govvue.com` as the Cognito custom domain, attaches their workshop ACM certificates, and creates Route 53 A and AAAA alias records in the workshop hosted zone.
 
 ### 7. Verify the deployment
 
@@ -279,7 +280,8 @@ Reuses the Lambda artifact currently recorded in the stack and applies the Cloud
 
 This is also the correct command after changing a YAML value consumed directly by CloudFormation, such as API throttling, log retention, reserved concurrency, or CORS.
 
-Changes to `app_domain_name`, `hosted_zone_id`, or `acm_certificate_arn` also
+Changes to `app_domain_name`, `hosted_zone_id`, `acm_certificate_arn`,
+`cognito_domain_name`, or `cognito_certificate_arn` also
 require an infrastructure update after the new external DNS/certificate
 prerequisites are ready.
 

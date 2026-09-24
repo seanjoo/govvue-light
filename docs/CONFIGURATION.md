@@ -26,13 +26,13 @@ Import a downloaded Google Web OAuth client without printing its secret:
 python3 scripts/import-google-oauth-config.py \
   --credentials /path/to/client_secret.json \
   --config config/dev.govvue-light.yml \
-  --domain-prefix govvue-light-dev-428613119099
+  --domain-name auth.govvue.com
 ```
 
 The Google client must authorize this JavaScript origin:
-`https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com` and
+`https://auth.govvue.com` and
 this redirect URI:
-`https://govvue-light-dev-428613119099.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`.
+`https://auth.govvue.com/oauth2/idpresponse`.
 
 ## YAML to SSM mapping
 
@@ -47,7 +47,8 @@ The default prefix is `/govvue-light/dev/`.
 | `app_domain_name` | `AppDomainName` | `String` | CloudFormation/CloudFront and Route 53 |
 | `hosted_zone_id` | `HostedZoneId` | `String` | CloudFormation/Route 53 |
 | `acm_certificate_arn` | `AcmCertificateArn` | `String` | CloudFormation/CloudFront |
-| `cognito_domain_prefix` | `CognitoDomainPrefix` | `String` | CloudFormation/Cognito managed login |
+| `cognito_domain_name` | `CognitoDomainName` | `String` | CloudFormation/Cognito custom domain |
+| `cognito_certificate_arn` | `CognitoCertificateArn` | `String` | CloudFormation/Cognito custom-domain certificate |
 | `google_oauth_client_id` | `GoogleOAuthClientId` | `String` | CloudFormation/Cognito Google provider |
 | `google_oauth_client_secret` | `GoogleOAuthClientSecret` | `SecureString` | CloudFormation/Cognito Google provider |
 | `frontend_title` | `FrontendTitle` | `String` | Frontend deployment runtime config |
@@ -94,7 +95,7 @@ The command prints only the name and type of secure parameters.
 ## Google OAuth rotation
 
 1. Download the replacement Google Web OAuth client JSON.
-2. Run `scripts/import-google-oauth-config.py` with the environment config and its existing Cognito domain prefix.
+2. Run `scripts/import-google-oauth-config.py` with the environment config and its Cognito custom domain name.
 3. Run `./scripts/deploy.sh --env dev --component infra`.
 
 A CloudFormation custom resource reads the Google client secret directly from

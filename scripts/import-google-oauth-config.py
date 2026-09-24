@@ -15,7 +15,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--credentials", required=True)
     parser.add_argument("--config", required=True)
-    parser.add_argument("--domain-prefix", required=True)
+    parser.add_argument("--domain-name", required=True)
     args = parser.parse_args()
 
     credentials_path = Path(args.credentials)
@@ -32,7 +32,7 @@ def main() -> int:
     config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     if not isinstance(config, dict):
         raise ValueError("Configuration root must be a YAML mapping")
-    config["cognito_domain_prefix"] = args.domain_prefix
+    config["cognito_domain_name"] = args.domain_name
     config["google_oauth_client_id"] = client_id
     config["google_oauth_client_secret"] = client_secret
     config_path.write_text(

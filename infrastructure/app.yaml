@@ -27,9 +27,12 @@ Parameters:
   AcmCertificateArn:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the us-east-1 ACM certificate ARN.
-  CognitoDomainPrefix:
+  CognitoDomainName:
     Type: AWS::SSM::Parameter::Value<String>
-    Description: SSM parameter containing the Cognito managed-login domain prefix.
+    Description: SSM parameter containing the Cognito custom authentication hostname.
+  CognitoCertificateArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the us-east-1 ACM certificate ARN for the Cognito custom domain.
   DailyFeedScheduleExpression:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the EventBridge schedule expression.
@@ -296,8 +299,29 @@ Resources:
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
-      Domain: !Ref CognitoDomainPrefix
+      Domain: !Ref CognitoDomainName
       UserPoolId: !Ref UserPool
+      CustomDomainConfig:
+        CertificateArn: !Ref CognitoCertificateArn
+
+  CognitoDnsRecords:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Comment: !Sub 'GovVue Light ${Environment} Cognito custom domain aliases'
+      RecordSets:
+        - Name: !Ref CognitoDomainName
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt UserPoolDomain.CloudFrontDistribution
+            HostedZoneId: Z2FDTNDATAQYW2
+            EvaluateTargetHealth: false
+        - Name: !Ref CognitoDomainName
+          Type: AAAA
+          AliasTarget:
+            DNSName: !GetAtt UserPoolDomain.CloudFrontDistribution
+            HostedZoneId: Z2FDTNDATAQYW2
+            EvaluateTargetHealth: false
 
   AuthConfigFunctionRole:
     Type: AWS::IAM::Role
@@ -1202,7 +1226,7 @@ Outputs:
   CognitoUserPoolId:
     Value: !Ref UserPool
   CognitoDomain:
-    Value: !Sub 'https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com'
+    Value: !Sub 'https://${CognitoDomainName}'
   SearchCacheBucketName:
     Value: !Ref SearchCacheBucket
   DailyFeedBucketName:

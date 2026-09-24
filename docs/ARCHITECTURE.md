@@ -6,7 +6,7 @@
 Browser
   ├─ HTTPS ─> CloudFront ─> private S3 website bucket
   ├─ password sign-in ─> Amazon Cognito user pool
-  ├─ Google sign-in ─> Cognito managed login ─> Google OAuth
+  ├─ Google sign-in ─> auth.govvue.com (Cognito managed login) ─> Google OAuth
   └─ JWT API request ─> API Gateway HTTP API ─> Lambda (not VPC-attached)
                                                    ├─ SAM.gov opportunity and entity HTTPS APIs
                                                    ├─ SSM Parameter Store
@@ -46,7 +46,7 @@ restartable and prevent partial feeds from being presented as complete.
 
 The bootstrap stack creates the versioned artifact bucket. The application stack creates:
 
-- a Cognito user pool, managed-login domain, Google identity provider, public web client, and pre-sign-up account-link Lambda;
+- a Cognito user pool, `auth.govvue.com` custom managed-login domain, Google identity provider, public web client, and pre-sign-up account-link Lambda;
 - Cognito `admin` and `user` groups, with backend authorization based on the signed `cognito:groups` token claim;
 - an API Gateway HTTP API with Cognito JWT authorization;
 - API, daily-feed, and notification Lambda functions with immutable versions and `live` aliases;
@@ -58,7 +58,7 @@ The bootstrap stack creates the versioned artifact bucket. The application stack
 - an SES domain identity with Route 53 Easy DKIM records;
 - a private, versioned frontend bucket;
 - CloudFront with origin access control, the `app.govvue.com` ACM certificate, and security headers;
-- Route 53 A and AAAA aliases from `app.govvue.com` to CloudFront; and
+- Route 53 A and AAAA aliases from `app.govvue.com` to the application CloudFront distribution and from `auth.govvue.com` to the AWS-managed Cognito distribution; and
 - CloudWatch API and Lambda log groups.
 
 Stateful resources use `DeletionPolicy: Retain` and `UpdateReplacePolicy: Retain`.

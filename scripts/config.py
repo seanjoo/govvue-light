@@ -21,7 +21,8 @@ REQUIRED = (
     "app_domain_name",
     "hosted_zone_id",
     "acm_certificate_arn",
-    "cognito_domain_prefix",
+    "cognito_domain_name",
+    "cognito_certificate_arn",
     "google_oauth_client_id",
     "google_oauth_client_secret",
     "sam_api_key",
@@ -65,9 +66,12 @@ def validate(data: dict[str, Any]) -> list[str]:
     certificate_arn = str(data.get("acm_certificate_arn", ""))
     if not certificate_arn.startswith("arn:aws:acm:us-east-1:"):
         errors.append("acm_certificate_arn must be an ACM certificate in us-east-1")
-    domain_prefix = str(data.get("cognito_domain_prefix", ""))
-    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", domain_prefix):
-        errors.append("cognito_domain_prefix must be 1-63 lowercase letters, numbers, or hyphens")
+    cognito_domain = str(data.get("cognito_domain_name", ""))
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?", cognito_domain) or not cognito_domain.endswith(".govvue.com"):
+        errors.append("cognito_domain_name must be a lowercase govvue.com hostname")
+    cognito_certificate_arn = str(data.get("cognito_certificate_arn", ""))
+    if not cognito_certificate_arn.startswith("arn:aws:acm:us-east-1:"):
+        errors.append("cognito_certificate_arn must be an ACM certificate in us-east-1")
     client_id = str(data.get("google_oauth_client_id", ""))
     if client_id and not client_id.endswith(".apps.googleusercontent.com"):
         errors.append("google_oauth_client_id must be a Google Web OAuth client ID")
