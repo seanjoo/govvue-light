@@ -235,7 +235,7 @@ a { color: #005ea8; }
   .app-header__inner { min-height: 64px; flex-wrap: nowrap; padding-top: .5rem; padding-bottom: .5rem; gap: 1rem; }
   .app-brand { font-size: 1.2rem; }
   .app-brand__mark { width: 2.25rem; height: 2.25rem; }
-  .app-menu-button { display: inline-flex; flex: 0 0 auto; margin: 0 0 0 auto; padding: .65rem .9rem; }
+  .app-menu-button { width: auto; display: inline-flex; flex: 0 0 auto; margin: 0 0 0 auto; padding: .65rem .9rem; }
   .app-account { display: none; }
   .app-header .app-nav-panel {
     position: fixed;
