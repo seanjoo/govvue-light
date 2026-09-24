@@ -2,7 +2,6 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { runtimeConfig } from '../runtimeConfig';
 
 const links = [
-  { to: '/about', label: 'About' },
   { to: '/privacy', label: 'Privacy' },
   { to: '/terms', label: 'Terms' },
 ];

@@ -209,6 +209,7 @@ a { color: #005ea8; }
 .public-content h2 { margin-top: 2.5rem; color: #162e51; }
 .public-content li + li { margin-top: .6rem; }
 .public-hero { margin-bottom: 3rem; padding: 2.5rem; border-left: 6px solid #005ea8; background: #fff; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+.public-landing .public-hero { margin-bottom: 0; }
 .public-hero__lead { max-width: 44rem; color: #3d4551; font-size: 1.35rem; line-height: 1.5; }
 .public-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.75rem; }
 .public-actions .usa-button { margin: 0; }
