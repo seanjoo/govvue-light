@@ -161,6 +161,14 @@ a { color: #005ea8; }
 .account-summary h2, .account-password-panel h2 { margin-top: 0; }
 .account-summary .detail-grid { margin-bottom: 0; }
 .account-password-panel { max-width: 44rem; }
+.password-requirements { margin-top: .9rem; padding: .85rem 1rem; border-left: 4px solid #a9aeb1; background: #f7f9fa; font-size: .92rem; }
+.password-requirements__heading { margin: 0 0 .45rem; font-weight: 700; }
+.password-requirements ul { margin: 0; padding: 0; list-style: none; }
+.password-requirement { display: flex; align-items: baseline; gap: .45rem; margin: .2rem 0; }
+.password-requirement > span { width: 1rem; flex: 0 0 1rem; font-weight: 700; text-align: center; }
+.password-requirement--pending { color: #565c65; }
+.password-requirement--met { color: #2e8540; }
+.password-requirement--unmet { color: #b50909; }
 .admin-create-user { margin-bottom: 2rem; }
 .admin-create-user h2 { margin-top: 0; }
 .admin-user-list { display: grid; gap: 1rem; }

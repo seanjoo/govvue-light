@@ -1,7 +1,9 @@
 import { FormEvent, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import PasswordRequirements from '../components/PasswordRequirements';
 import { beginPasswordReset, finishPasswordReset } from '../auth/cognito';
+import { passwordMeetsPolicy } from '../lib/passwordPolicy';
 import { runtimeConfig } from '../runtimeConfig';
 
 export default function LoginPage() {
@@ -10,6 +12,7 @@ export default function LoginPage() {
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [newPasswordRequired, setNewPasswordRequired] = useState(false);
   const [resetMode, setResetMode] = useState<'none' | 'request' | 'confirm'>('none');
   const [confirmationCode, setConfirmationCode] = useState('');
@@ -21,6 +24,9 @@ export default function LoginPage() {
     const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
     return from?.pathname ? `${from.pathname}${from.search || ''}` : '/search';
   })();
+  const creatingPassword = newPasswordRequired || resetMode === 'confirm';
+  const passwordValid = passwordMeetsPolicy(password);
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
 
   if (!loading && user) return <Navigate to={requestedPath} replace />;
 
@@ -28,6 +34,14 @@ export default function LoginPage() {
     event.preventDefault();
     setError('');
     setMessage('');
+    if (creatingPassword && !passwordValid) {
+      setError('The new password does not meet all password requirements.');
+      return;
+    }
+    if (creatingPassword && !passwordsMatch) {
+      setError('New passwords do not match.');
+      return;
+    }
     setSubmitting(true);
     try {
       if (resetMode === 'request') {
@@ -46,6 +60,7 @@ export default function LoginPage() {
         setResetMode('none');
         setConfirmationCode('');
         setPassword('');
+        setConfirmPassword('');
         setMessage('Your password was reset. Sign in with the new password.');
         return;
       }
@@ -56,6 +71,7 @@ export default function LoginPage() {
         navigate(requestedPath, { replace: true });
       } else if (result.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
         setPassword('');
+        setConfirmPassword('');
         setNewPasswordRequired(true);
       } else {
         setError(`Additional Cognito step is required: ${result.nextStep.signInStep}`);
@@ -63,6 +79,7 @@ export default function LoginPage() {
     } catch (caught) {
       if (caught instanceof Error && caught.name === 'PasswordResetRequiredException') {
         setPassword('');
+        setConfirmPassword('');
         setResetMode('confirm');
         setMessage('Enter the password-reset code from your email and choose a new password.');
       } else {
@@ -109,11 +126,44 @@ export default function LoginPage() {
           )}
           {resetMode !== 'request' && (
             <>
-              <label className="usa-label" htmlFor="password">{newPasswordRequired || resetMode === 'confirm' ? 'New password' : 'Password'}</label>
-              <input className="usa-input" id="password" type="password" autoComplete={newPasswordRequired || resetMode === 'confirm' ? 'new-password' : 'current-password'} minLength={12} required value={password} onChange={(event) => setPassword(event.target.value)} />
+              <label className="usa-label" htmlFor="password">{creatingPassword ? 'New password' : 'Password'}</label>
+              <input
+                className="usa-input"
+                id="password"
+                type="password"
+                autoComplete={creatingPassword ? 'new-password' : 'current-password'}
+                minLength={creatingPassword ? 12 : undefined}
+                required
+                value={password}
+                aria-describedby={creatingPassword ? 'login-password-requirements' : undefined}
+                aria-invalid={creatingPassword && password.length > 0 && !passwordValid}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              {creatingPassword && (
+                <>
+                  <label className="usa-label" htmlFor="confirm-password">Confirm new password</label>
+                  <input
+                    className="usa-input"
+                    id="confirm-password"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={12}
+                    required
+                    value={confirmPassword}
+                    aria-describedby="login-password-requirements-match"
+                    aria-invalid={confirmPassword.length > 0 && !passwordsMatch}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                  />
+                  <PasswordRequirements
+                    password={password}
+                    confirmPassword={confirmPassword}
+                    id="login-password-requirements"
+                  />
+                </>
+              )}
             </>
           )}
-          <button className="usa-button width-full margin-top-3" type="submit" disabled={submitting}>
+          <button className="usa-button width-full margin-top-3" type="submit" disabled={submitting || (creatingPassword && (!passwordValid || !passwordsMatch))}>
             {submitting ? 'Please wait…' : newPasswordRequired ? 'Set password' : resetMode === 'request' ? 'Send reset code' : resetMode === 'confirm' ? 'Reset password' : 'Sign in'}
           </button>
         </form>
@@ -125,6 +175,7 @@ export default function LoginPage() {
               setResetMode(resetMode === 'none' ? 'request' : 'none');
               setConfirmationCode('');
               setPassword('');
+              setConfirmPassword('');
               setError('');
               setMessage('');
             }}

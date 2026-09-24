@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
+import PasswordRequirements from '../components/PasswordRequirements';
 import { changePassword } from '../auth/cognito';
+import { passwordMeetsPolicy } from '../lib/passwordPolicy';
 
 export default function AccountPage() {
   const { user } = useAuth();
@@ -10,12 +12,18 @@ export default function AccountPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const passwordValid = passwordMeetsPolicy(newPassword);
+  const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
     setMessage('');
-    if (newPassword !== confirmPassword) {
+    if (!passwordValid) {
+      setError('The new password does not meet all password requirements.');
+      return;
+    }
+    if (!passwordsMatch) {
       setError('New passwords do not match.');
       return;
     }
@@ -45,17 +53,17 @@ export default function AccountPage() {
       </section>
       <section className="search-panel account-password-panel">
         <h2>Change password</h2>
-        <p className="text-base">Use at least 12 characters with uppercase, lowercase, number, and symbol characters.</p>
         {error && <Alert type="error">{error}</Alert>}
         {message && <Alert type="success">{message}</Alert>}
         <form className="usa-form" onSubmit={submit}>
           <label className="usa-label" htmlFor="current-password">Current password</label>
           <input className="usa-input" id="current-password" type="password" autoComplete="current-password" required value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
           <label className="usa-label" htmlFor="new-password">New password</label>
-          <input className="usa-input" id="new-password" type="password" autoComplete="new-password" minLength={12} required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+          <input className="usa-input" id="new-password" type="password" autoComplete="new-password" minLength={12} required value={newPassword} aria-describedby="account-password-requirements" aria-invalid={newPassword.length > 0 && !passwordValid} onChange={(event) => setNewPassword(event.target.value)} />
           <label className="usa-label" htmlFor="confirm-password">Confirm new password</label>
-          <input className="usa-input" id="confirm-password" type="password" autoComplete="new-password" minLength={12} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
-          <button className="usa-button margin-top-3" type="submit" disabled={saving}>{saving ? 'Changing…' : 'Change password'}</button>
+          <input className="usa-input" id="confirm-password" type="password" autoComplete="new-password" minLength={12} required value={confirmPassword} aria-describedby="account-password-requirements-match" aria-invalid={confirmPassword.length > 0 && !passwordsMatch} onChange={(event) => setConfirmPassword(event.target.value)} />
+          <PasswordRequirements password={newPassword} confirmPassword={confirmPassword} id="account-password-requirements" />
+          <button className="usa-button margin-top-3" type="submit" disabled={saving || !passwordValid || !passwordsMatch}>{saving ? 'Changing…' : 'Change password'}</button>
         </form>
       </section>
     </>
