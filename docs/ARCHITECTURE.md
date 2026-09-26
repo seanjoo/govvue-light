@@ -122,6 +122,7 @@ remain scoped to the authenticated user's partition key.
 - Website and cache buckets block all public access.
 - CloudFront alone can read the website bucket through signed origin access control.
 - Search descriptions are converted to plain text; frontend code never renders SAM.gov HTML.
+- Daily emails show type, response deadline, a short plain-text description, and a GovVue Light detail link for the first 10 matches. Description text is fetched on demand instead of for every record in the shared daily feed.
 - Description URLs are accepted only when they use HTTPS and a `sam.gov` hostname.
 - Entity responses are normalized to public registration, address, business-type, NAICS, PSC, and disaster-response fields; sensitive banking, tax, and point-of-contact data is neither returned to the browser nor stored.
 - API Gateway throttling and Lambda reserved concurrency bound accidental request bursts.

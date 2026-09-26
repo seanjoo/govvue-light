@@ -74,6 +74,10 @@ Run now action explicitly refreshes the feed and runs all enabled
 notifications. Inspect the feed Lambda logs, queue depths, DLQs, and the
 `DAILY_FEED#<date>` DynamoDB records if a run does not complete.
 
+Each email includes up to 10 matching opportunities with the notice type,
+response deadline, a short description, and a direct GovVue Light detail link.
+The notification run page remains the complete, paginated result for that day.
+
 ## SES delivery
 
 Daily notification mail is sent from `notifications@govvue.com`. Cognito

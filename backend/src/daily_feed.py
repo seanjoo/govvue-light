@@ -247,8 +247,6 @@ def _page(message: dict[str, Any]) -> None:
     )
     result = search_opportunities(params, page_index, config, config.daily_feed_page_size)
     records = result["records"]
-    for record in records:
-        record.pop("_description_url", None)
     total_records = int(result["total_records"])
     total_pages = max(1, math.ceil(total_records / config.daily_feed_page_size))
     payload = {
