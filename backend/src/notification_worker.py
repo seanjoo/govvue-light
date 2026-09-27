@@ -203,6 +203,9 @@ def _process(message: dict[str, Any]) -> None:
         len(matched),
         config.notification_run_retention_days,
     )
+    if not matched:
+        storage.skip_notification_email(user_id, notification_id, run_date)
+        return
     if not storage.claim_notification_email(user_id, notification_id, run_date):
         return
 

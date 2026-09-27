@@ -85,6 +85,45 @@ class NotificationEmailTests(unittest.TestCase):
 
         self.assertEqual(result[0]["description"], "")
 
+    @patch.object(notification_worker._ses, "send_email")
+    @patch("notification_worker.storage.claim_notification_email")
+    @patch("notification_worker.storage.skip_notification_email")
+    @patch("notification_worker.storage.put_notification_run_summary")
+    @patch("notification_worker.storage.put_notification_results")
+    @patch("notification_worker.get_runtime_config")
+    @patch("notification_worker._load_feed", return_value=[])
+    def test_no_match_run_is_recorded_without_sending_email(
+        self,
+        _load_feed,
+        get_runtime_config,
+        _put_results,
+        _put_summary,
+        skip_notification_email,
+        claim_notification_email,
+        send_email,
+    ):
+        get_runtime_config.return_value = SimpleNamespace(
+            notification_run_retention_days=30
+        )
+
+        notification_worker._process(
+            {
+                "user_id": "user-1",
+                "notification_id": "notification-1",
+                "run_date": "2026-09-27",
+                "name": "No matches",
+                "recipient_email": "user@example.com",
+                "criteria": {},
+                "total_pages": 1,
+            }
+        )
+
+        skip_notification_email.assert_called_once_with(
+            "user-1", "notification-1", "2026-09-27"
+        )
+        claim_notification_email.assert_not_called()
+        send_email.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

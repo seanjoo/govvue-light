@@ -490,9 +490,33 @@ def claim_notification_email(user_id: str, notification_id: str, run_date: str) 
                 "SK": f"NOTIFICATION_RUN#{notification_id}#{run_date}",
             },
             UpdateExpression="SET emailStatus = :sending, emailAttemptedAt = :now",
-            ConditionExpression="emailStatus IN (:pending, :failed)",
+            ConditionExpression="emailStatus IN (:pending, :failed, :skipped)",
             ExpressionAttributeValues={
                 ":sending": "SENDING",
+                ":pending": "PENDING",
+                ":failed": "FAILED",
+                ":skipped": "SKIPPED",
+                ":now": int(time.time()),
+            },
+        )
+        return True
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            return False
+        raise
+
+
+def skip_notification_email(user_id: str, notification_id: str, run_date: str) -> bool:
+    try:
+        table().update_item(
+            Key={
+                "PK": f"USER#{user_id}",
+                "SK": f"NOTIFICATION_RUN#{notification_id}#{run_date}",
+            },
+            UpdateExpression="SET emailStatus = :skipped, emailUpdatedAt = :now",
+            ConditionExpression="emailStatus IN (:pending, :failed, :skipped)",
+            ExpressionAttributeValues={
+                ":skipped": "SKIPPED",
                 ":pending": "PENDING",
                 ":failed": "FAILED",
                 ":now": int(time.time()),

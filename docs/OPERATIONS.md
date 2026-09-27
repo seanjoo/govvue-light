@@ -77,6 +77,8 @@ notifications. Inspect the feed Lambda logs, queue depths, DLQs, and the
 Each email includes up to 10 matching opportunities with the notice type,
 response deadline, a short description, and a direct GovVue Light detail link.
 The notification run page remains the complete, paginated result for that day.
+Runs with no matches are recorded with an email status of `SKIPPED`; no email
+is submitted to SES for those runs.
 
 ## SES delivery
 
