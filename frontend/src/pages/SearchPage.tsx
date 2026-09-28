@@ -218,7 +218,7 @@ export default function SearchPage() {
               </div>
               <button className="usa-button" type="submit" disabled={buildingPlan}>{buildingPlan ? 'Building filters…' : 'Build search filters'}</button>
             </div>
-            <p className="usa-hint">{userContext.company ? <>Shared profile: <Link to="/company-profile">{userContext.company.name}</Link></> : <>No company profile is assigned. Ask an administrator to assign your account.</>}</p>
+            <p className="usa-hint">{userContext.company ? <>Shared profile: <Link to="/company-profile">{userContext.company.name}</Link></> : <>No company profile is assigned. <Link to="/company-profile">Create your company profile</Link>.</>}</p>
           </form>
           {interpretation && (
             <div className="ai-search-plan" role="status">

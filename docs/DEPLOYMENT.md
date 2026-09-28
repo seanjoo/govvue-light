@@ -187,10 +187,13 @@ reset from the Admin page; users who have not completed first sign-in receive a
 new generated temporary password and invitation instead. The invitation explains
 both the password setup and the matching-email Google option.
 
-Administrators create company workspaces and assign users from Admin. A company
-can contain any number of users and has one shared profile. A company manager
-can edit that profile, invite regular users from the Company profile page,
-promote other company managers, and remove a member's company assignment.
+An invited user who is not assigned to a company can open **Company profile**,
+enter a company name and profile, and create the shared workspace. The creator
+becomes its first company manager. This self-service operation preserves the
+invitation-only access model and cannot replace an existing company assignment.
+A company can contain any number of users and has one shared profile. A company
+manager can edit that profile, invite regular users from the Company profile
+page, promote other company managers, and remove a member's company assignment.
 Removing a company member does not delete the Cognito account or personal
 GovVue data. Per-user feature flags remain platform-admin controls.
 
@@ -214,6 +217,11 @@ To create a company in the UI:
 5. From the same page, the manager can invite members or designate additional
    company managers. A GovVue administrator can later change any company role
    from the user cards in Admin.
+
+The administrator-created workflow remains available alongside self-service
+creation. Every company card in Admin includes **Manage profile**, which lets a
+GovVue administrator view and edit that company's shared profile without
+changing the administrator's own company assignment.
 
 For an idempotent scripted company setup after the users already exist, use:
 

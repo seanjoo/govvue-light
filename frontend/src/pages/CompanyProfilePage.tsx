@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { api } from '../lib/api';
 import type { CompanyMember, CompanyProfile, CompanyProfileResponse } from '../types';
@@ -30,9 +31,12 @@ const FIELDS: Array<{ name: keyof CompanyProfile; label: string; hint: string; r
 ];
 
 export default function CompanyProfilePage() {
+  const { companyId } = useParams();
   const { user } = useAuth();
+  const endpoint = companyId ? `/admin/companies/${encodeURIComponent(companyId)}/profile` : '/company-profile';
   const [data, setData] = useState<CompanyProfileResponse | null>(null);
   const [profile, setProfile] = useState(EMPTY_PROFILE);
+  const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -48,15 +52,37 @@ export default function CompanyProfilePage() {
   }
 
   useEffect(() => {
-    api<CompanyProfileResponse>('/company-profile')
+    api<CompanyProfileResponse>(endpoint)
       .then((response) => {
         setData(response);
         setProfile(response.profile);
-        if (response.can_edit) loadMembers().catch((caught) => setError(caught instanceof Error ? caught.message : 'Unable to load company members'));
+        if (response.can_edit && !companyId) loadMembers().catch((caught) => setError(caught instanceof Error ? caught.message : 'Unable to load company members'));
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : 'Unable to load company profile'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [companyId, endpoint]);
+
+  async function createCompany(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await api<CompanyProfileResponse>('/company-profile', {
+        method: 'POST',
+        body: JSON.stringify({ name: companyName, profile }),
+      });
+      setData(response);
+      setProfile(response.profile);
+      setCompanyName('');
+      setMessage(`Created ${response.company?.name}. You are now its company administrator.`);
+      await loadMembers();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to create company profile');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -64,7 +90,7 @@ export default function CompanyProfilePage() {
     setError('');
     setMessage('');
     try {
-      const response = await api<CompanyProfileResponse>('/company-profile', {
+      const response = await api<CompanyProfileResponse>(endpoint, {
         method: 'PUT',
         body: JSON.stringify({ profile }),
       });
@@ -131,31 +157,33 @@ export default function CompanyProfilePage() {
   return (
     <>
       <div className="page-heading">
-        <div><p className="page-kicker">Company workspace</p><h1>{data?.company.name || 'Company profile'}</h1></div>
+        <div><p className="page-kicker">Company workspace</p><h1>{data?.company?.name || (data?.can_create ? 'Create your company profile' : 'Company profile')}</h1></div>
+        {companyId && <Link className="usa-button usa-button--outline" to="/admin/users">Back to admin</Link>}
       </div>
       {error && <Alert type="error">{error}</Alert>}
       {message && <Alert type="success">{message}</Alert>}
-      {data && (
+      {data?.can_create && (
+        <form className="search-panel company-profile" onSubmit={createCompany}>
+          <h2 className="margin-top-0">Set up your company workspace</h2>
+          <p className="text-base">Your account is not linked to a company. Create the shared company profile below and you will become its company administrator, with permission to maintain the profile and invite members. This does not grant GovVue platform-administrator access.</p>
+          <div className="margin-bottom-3">
+            <label className="usa-label" htmlFor="profile-company-name">Company name</label>
+            <span className="usa-hint">Use the organization name that other invited users will recognize.</span>
+            <input className="usa-input maxw-none" id="profile-company-name" required minLength={2} maxLength={120} value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+          </div>
+          <ProfileFields profile={profile} onChange={(name, value) => setProfile((current) => ({ ...current, [name]: value }))} />
+          <button className="usa-button margin-top-3" type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create company profile'}</button>
+        </form>
+      )}
+      {data?.company && (
         <form className="search-panel company-profile" onSubmit={save}>
           <p className="text-base margin-top-0">This profile is shared by everyone assigned to {data.company.name}. The AI search builder uses it only when requested or when an automatic search refers to company fit.</p>
           {!data.can_edit && <p className="usa-hint">You can view this profile. A company manager or administrator can edit it.</p>}
-          <div className="company-profile__fields">
-            {FIELDS.map((field) => (
-              <div key={field.name}>
-                <label className="usa-label" htmlFor={`profile-${field.name}`}>{field.label}</label>
-                <span className="usa-hint">{field.hint}</span>
-                {field.rows ? (
-                  <textarea className="usa-textarea maxw-none" id={`profile-${field.name}`} rows={field.rows} value={profile[field.name]} disabled={!data.can_edit} onChange={(event) => setProfile((current) => ({ ...current, [field.name]: event.target.value }))} />
-                ) : (
-                  <input className="usa-input maxw-none" id={`profile-${field.name}`} value={profile[field.name]} disabled={!data.can_edit} onChange={(event) => setProfile((current) => ({ ...current, [field.name]: event.target.value }))} />
-                )}
-              </div>
-            ))}
-          </div>
+          <ProfileFields profile={profile} disabled={!data.can_edit} onChange={(name, value) => setProfile((current) => ({ ...current, [name]: value }))} />
           {data.can_edit && <button className="usa-button margin-top-3" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save company profile'}</button>}
         </form>
       )}
-      {data?.can_edit && (
+      {data?.company && data.can_edit && !companyId && (
         <section className="search-panel company-members">
           <div className="section-heading"><div><p className="page-kicker">Company access</p><h2>Members</h2></div></div>
           <form className="company-members__invite" onSubmit={invite}>
@@ -191,6 +219,28 @@ export default function CompanyProfilePage() {
         </section>
       )}
     </>
+  );
+}
+
+function ProfileFields({ profile, disabled = false, onChange }: {
+  profile: CompanyProfile;
+  disabled?: boolean;
+  onChange: (name: keyof CompanyProfile, value: string) => void;
+}) {
+  return (
+    <div className="company-profile__fields">
+      {FIELDS.map((field) => (
+        <div key={field.name}>
+          <label className="usa-label" htmlFor={`profile-${field.name}`}>{field.label}</label>
+          <span className="usa-hint">{field.hint}</span>
+          {field.rows ? (
+            <textarea className="usa-textarea maxw-none" id={`profile-${field.name}`} rows={field.rows} value={profile[field.name]} disabled={disabled} onChange={(event) => onChange(field.name, event.target.value)} />
+          ) : (
+            <input className="usa-input maxw-none" id={`profile-${field.name}`} value={profile[field.name]} disabled={disabled} onChange={(event) => onChange(field.name, event.target.value)} />
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 

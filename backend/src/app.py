@@ -522,6 +522,40 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                 },
             )
 
+    admin_company_profile_match = re.fullmatch(
+        r"/admin/companies/([A-Za-z0-9-]+)/profile", path
+    )
+    if admin_company_profile_match:
+        _require_admin(event)
+        company_id = admin_company_profile_match.group(1)
+        company = storage.get_company(company_id)
+        if not company:
+            raise LookupError("Company not found")
+        if method == "GET":
+            return response(
+                200,
+                {
+                    "company": company,
+                    "profile": storage.get_company_profile(company_id),
+                    "can_edit": True,
+                    "can_create": False,
+                },
+            )
+        if method == "PUT":
+            payload = _body(event)
+            profile = payload["profile"] if "profile" in payload else payload
+            if not isinstance(profile, dict):
+                raise ValueError("profile must be a JSON object")
+            return response(
+                200,
+                {
+                    "company": company,
+                    "profile": storage.put_company_profile(company_id, profile),
+                    "can_edit": True,
+                    "can_create": False,
+                },
+            )
+
     if path == "/admin/users":
         _require_admin(event)
         if method == "GET":
@@ -624,22 +658,62 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
     if path == "/company-profile":
         access = _access_context(event, user_id)
         company = access.get("company")
-        if not company:
-            raise LookupError("Your account is not assigned to a company")
         if method == "GET":
+            if not company:
+                return response(
+                    200,
+                    {
+                        "company": None,
+                        "profile": storage.empty_company_profile(),
+                        "can_edit": False,
+                        "can_create": True,
+                    },
+                )
             return response(
                 200,
                 {
                     "company": company,
                     "profile": storage.get_company_profile(access["company_id"]),
                     "can_edit": access["can_edit_company_profile"],
+                    "can_create": False,
+                },
+            )
+        if method == "POST":
+            if company or access["company_id"]:
+                raise ValueError("Your account is already assigned to a company")
+            payload = _body(event)
+            profile = payload.get("profile", {})
+            if not isinstance(profile, dict):
+                raise ValueError("profile must be a JSON object")
+            created_company = storage.create_company(str(payload.get("name") or ""))
+            try:
+                saved_profile = storage.put_company_profile(
+                    created_company["company_id"], profile
+                )
+                storage.assign_company_manager_if_unassigned(
+                    user_id,
+                    created_company["company_id"],
+                    access["features"],
+                )
+            except Exception:
+                storage.delete_company(created_company["company_id"])
+                raise
+            return response(
+                201,
+                {
+                    "company": created_company,
+                    "profile": saved_profile,
+                    "can_edit": True,
+                    "can_create": False,
                 },
             )
         if method == "PUT":
+            if not company:
+                raise LookupError("Your account is not assigned to a company")
             if not access["can_edit_company_profile"]:
                 raise ForbiddenError("Company manager or administrator role is required")
             payload = _body(event)
-            profile = payload.get("profile") or payload
+            profile = payload["profile"] if "profile" in payload else payload
             if not isinstance(profile, dict):
                 raise ValueError("profile must be a JSON object")
             return response(
@@ -648,6 +722,7 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                     "company": company,
                     "profile": storage.put_company_profile(access["company_id"], profile),
                     "can_edit": True,
+                    "can_create": False,
                 },
             )
 

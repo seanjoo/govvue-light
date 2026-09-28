@@ -133,6 +133,44 @@ def put_user_settings(
     }
 
 
+def assign_company_manager_if_unassigned(
+    user_id: str,
+    company_id: str,
+    features: list[str],
+) -> dict[str, Any]:
+    """Claim a newly created company without replacing an existing assignment."""
+    clean_company_id = str(company_id or "").strip()
+    if not clean_company_id or not get_company(clean_company_id):
+        raise ValueError("Company not found")
+    allowed_features = {"natural_language_search"}
+    clean_features = sorted(
+        {str(value).strip() for value in features if str(value).strip() in allowed_features}
+    )
+    try:
+        table().put_item(
+            Item={
+                "PK": f"USER#{user_id}",
+                "SK": "SETTINGS",
+                "entityType": "userSettings",
+                "companyId": clean_company_id,
+                "companyRole": "manager",
+                "features": clean_features,
+                "updatedAt": int(time.time()),
+            },
+            ConditionExpression="attribute_not_exists(companyId) OR companyId = :empty",
+            ExpressionAttributeValues={":empty": ""},
+        )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            raise ValueError("Your account is already assigned to a company") from exc
+        raise
+    return {
+        "company_id": clean_company_id,
+        "company_role": "manager",
+        "features": clean_features,
+    }
+
+
 def list_companies() -> list[dict[str, Any]]:
     response = table().query(
         KeyConditionExpression=Key("PK").eq("SYSTEM#COMPANIES")
@@ -237,6 +275,10 @@ COMPANY_PROFILE_FIELDS = {
     "positive_keywords",
     "negative_keywords",
 }
+
+
+def empty_company_profile() -> dict[str, str]:
+    return {field: "" for field in COMPANY_PROFILE_FIELDS}
 
 
 def get_company_profile(company_id: str) -> dict[str, str]:

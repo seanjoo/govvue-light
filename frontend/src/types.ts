@@ -79,9 +79,10 @@ export interface CompanyProfile {
 }
 
 export interface CompanyProfileResponse {
-  company: Company;
+  company: Company | null;
   profile: CompanyProfile;
   can_edit: boolean;
+  can_create: boolean;
 }
 
 export interface CompanyMember {

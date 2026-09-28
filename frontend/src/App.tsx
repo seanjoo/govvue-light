@@ -60,6 +60,7 @@ export default function App() {
           <Route path="/notifications/:notificationId/runs/:runDate" element={<DailyNotificationRunPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/company-profile" element={<CompanyProfilePage />} />
+          <Route path="/admin/companies/:companyId/profile" element={<CompanyProfilePage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="*" element={<Navigate to="/search" replace />} />
         </Route>

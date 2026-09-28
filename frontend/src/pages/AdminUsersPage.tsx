@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { api } from '../lib/api';
 import type { AdminCompany, AdminUser } from '../types';
@@ -144,7 +145,7 @@ export default function AdminUsersPage() {
   return (
     <>
       <div className="page-heading"><div><p className="page-kicker">Administration</p><h1>Manage users and companies</h1></div></div>
-      <div className="usa-alert usa-alert--info margin-bottom-3"><div className="usa-alert__body"><p className="usa-alert__text"><strong>GovVue administrators</strong> manage the whole application. <strong>Company managers</strong> maintain one company profile and its members, but cannot grant GovVue administrator access.</p></div></div>
+      <div className="usa-alert usa-alert--info margin-bottom-3"><div className="usa-alert__body"><p className="usa-alert__text"><strong>GovVue administrators</strong> manage the whole application, including every company profile. <strong>Company managers</strong> maintain one company profile and its members, but cannot grant GovVue administrator access.</p></div></div>
       <form className="search-panel admin-create-user" onSubmit={create}>
         <h2>Add user</h2>
         <p className="text-base">Cognito generates and emails a temporary password. The user must replace it during first sign-in.</p>
@@ -188,6 +189,7 @@ export default function AdminUsersPage() {
               <article className="admin-company-card" key={company.company_id}>
                 <div><h3>{company.name}</h3><p>{company.member_count} {company.member_count === 1 ? 'member' : 'members'}</p></div>
                 <div><strong>Company {company.managers.length === 1 ? 'manager' : 'managers'}</strong><span>{company.managers.map((manager) => manager.email || manager.username).join(', ') || 'None designated'}</span></div>
+                <Link className="usa-button usa-button--outline" to={`/admin/companies/${company.company_id}/profile`}>Manage profile</Link>
               </article>
             ))}
           </div>

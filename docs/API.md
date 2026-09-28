@@ -8,6 +8,8 @@ Except for `/health`, requests require a Cognito ID token in `Authorization: Bea
 | `GET` | `/me` | Current identity, platform role, company assignment, and feature flags |
 | `GET` | `/admin/companies` | Admin-only company workspace list |
 | `POST` | `/admin/companies` | Admin-only company and blank-profile creation with required `manager_username` |
+| `GET` | `/admin/companies/{companyId}/profile` | Admin-only access to any company profile |
+| `PUT` | `/admin/companies/{companyId}/profile` | Admin-only update of any company profile |
 | `GET` | `/admin/users` | Admin-only Cognito user list |
 | `POST` | `/admin/users` | Admin-only user invitation using `email` and optional `role` |
 | `PUT` | `/admin/users/{username}` | Admin-only role and enabled-status update |
@@ -16,7 +18,8 @@ Except for `/health`, requests require a Cognito ID token in `Authorization: Bea
 | `PUT` | `/admin/users/{username}/access` | Admin-only company assignment, company role, and feature toggles |
 | `GET` | `/opportunities/search` | Search active SAM.gov opportunities |
 | `POST` | `/opportunities/search/interpret` | Feature-gated Bedrock plan that returns editable opportunity filters |
-| `GET` | `/company-profile` | Read the authenticated user's shared company profile |
+| `GET` | `/company-profile` | Read the user's shared profile or return self-service creation state when unassigned |
+| `POST` | `/company-profile` | Create a company/profile for an unassigned user and make that user its manager |
 | `PUT` | `/company-profile` | Company-manager or admin profile update |
 | `GET` | `/company-members` | Company-manager or admin member list |
 | `POST` | `/company-members` | Invite a regular Cognito user into the current company |
