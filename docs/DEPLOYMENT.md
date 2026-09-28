@@ -12,6 +12,7 @@ configuration validator rejects a different profile.
 - AWS CLI v2
 - `zip`, `jq`, and `shasum`
 - a working AWS CLI profile named `workshop` with CloudFormation, IAM, Lambda, API Gateway, Cognito, DynamoDB, S3, CloudFront, Route 53, CloudWatch Logs, SSM, and KMS permissions
+- Amazon Bedrock model access for the configured AI search model (the default is Amazon Nova Lite)
 
 The development region comes from `config/dev.govvue-light.yml` and is
 `us-east-1` by default.
@@ -185,6 +186,30 @@ Cognito email-code password recovery flow. Administrators can send a password
 reset from the Admin page; users who have not completed first sign-in receive a
 new generated temporary password and invitation instead. The invitation explains
 both the password setup and the matching-email Google option.
+
+Administrators create company workspaces and assign users from Admin. A company
+can contain any number of users and has one shared profile. A company manager
+can edit that profile, invite regular users from the Company profile page,
+promote other company managers, and remove a member's company assignment.
+Removing a company member does not delete the Cognito account or personal
+GovVue data. Per-user feature flags remain platform-admin controls.
+
+For an idempotent scripted company setup after the users already exist, use:
+
+```bash
+.venv/bin/python scripts/configure-company.py \
+  --config config/dev.govvue-light.yml \
+  --name "LatticeWorks, Inc." \
+  --profile-json docs/LATTICEWORKS_PROFILE.json \
+  --manager sean.joo@latticeworksinc.com \
+  --member sean.joo@gmail.com \
+  --feature-user sean.joo@gmail.com
+```
+
+This reuses the company when its name already exists, replaces the shared
+profile with the reviewed JSON, assigns the company roles, and enables the AI
+search builder only for the listed feature user. It does not create Cognito
+users; use the invitation UI or `create-user.sh` first.
 
 The Cognito invitation and SES recipient verification are separate messages.
 The user pool uses the verified `govvue.com` SES identity with

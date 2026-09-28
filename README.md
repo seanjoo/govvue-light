@@ -8,6 +8,8 @@ The frontend uses the U.S. Web Design System (USWDS). The deployment is serverle
 
 - React 19, TypeScript, Vite, and USWDS frontend
 - Cognito email/password or Google authentication with invited-user account linking, `admin` and `user` roles, emailed temporary passwords, self-service password changes, and an administrator user-management screen
+- Shared company workspaces with one company profile, manager/member access, manager invitations, and per-user feature toggles
+- An opt-in Bedrock natural-language search builder that produces visible, editable SAM.gov filters before a search runs
 - Public About, Privacy, and Terms pages for Google OAuth branding and user disclosure
 - API Gateway HTTP API with a Cognito JWT authorizer
 - Python Lambda API packaged separately from CloudFormation

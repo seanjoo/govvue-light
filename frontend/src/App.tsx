@@ -20,6 +20,7 @@ import LandingPage from './pages/LandingPage';
 import AboutPage from './pages/AboutPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
+import CompanyProfilePage from './pages/CompanyProfilePage';
 
 function Protected() {
   const { user, loading } = useAuth();
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/notifications/:notificationId" element={<DailyNotificationDetailPage />} />
           <Route path="/notifications/:notificationId/runs/:runDate" element={<DailyNotificationRunPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/company-profile" element={<CompanyProfilePage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="*" element={<Navigate to="/search" replace />} />
         </Route>

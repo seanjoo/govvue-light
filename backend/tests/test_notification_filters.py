@@ -78,6 +78,14 @@ class NotificationFiltersTests(unittest.TestCase):
             )
         )
 
+    def test_multiple_organizations_use_pipe_separated_or(self):
+        self.assertTrue(
+            matches(
+                self.opportunity(),
+                {"organization_name": "Department of Defense|Department of Example"},
+            )
+        )
+
     def test_open_deadlines_only_rejects_past_due_opportunities(self):
         criteria = sanitize_criteria({"open_deadlines_only": "true"})
         past = (date.today() - timedelta(days=1)).isoformat()

@@ -52,6 +52,57 @@ class AdminAuthorizationTests(unittest.TestCase):
         self.assertEqual(result["statusCode"], 201)
         create_user.assert_called_once_with("new@example.com", "user")
 
+    @patch("app.storage.get_company", return_value=None)
+    @patch("app.storage.get_user_settings")
+    def test_ai_search_is_denied_when_feature_is_disabled(self, get_settings, _company):
+        get_settings.return_value = {
+            "company_id": "",
+            "company_role": "member",
+            "features": [],
+        }
+        result = app.lambda_handler(
+            event(
+                "POST",
+                "/opportunities/search/interpret",
+                "[user]",
+                {"query": "Find custom software opportunities"},
+            ),
+            SimpleNamespace(aws_request_id="test"),
+        )
+        self.assertEqual(result["statusCode"], 403)
+
+    @patch("app.get_runtime_config")
+    @patch("app.interpret_search")
+    @patch("app.storage.get_company_profile", return_value={"overview": "Software"})
+    @patch("app.storage.get_company", return_value={"company_id": "company-1", "name": "Acme"})
+    @patch("app.storage.get_user_settings")
+    def test_enabled_ai_search_receives_shared_company_profile(
+        self, get_settings, _company, get_profile, interpret, _config
+    ):
+        get_settings.return_value = {
+            "company_id": "company-1",
+            "company_role": "member",
+            "features": ["natural_language_search"],
+        }
+        interpret.return_value = {
+            "used_company_profile": True,
+            "interpretation": "Software",
+            "assumptions": [],
+            "criteria": {"title": "software"},
+        }
+        result = app.lambda_handler(
+            event(
+                "POST",
+                "/opportunities/search/interpret",
+                "[user]",
+                {"query": "Find work matching our company", "profile_mode": "auto"},
+            ),
+            SimpleNamespace(aws_request_id="test"),
+        )
+        self.assertEqual(result["statusCode"], 200)
+        self.assertEqual(interpret.call_args.args[2], {"overview": "Software"})
+        get_profile.assert_called_once_with("company-1")
+
 
 class CognitoUserAdminTests(unittest.TestCase):
     @patch("user_admin.ses_client")

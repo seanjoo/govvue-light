@@ -10,6 +10,7 @@ Browser
   └─ JWT API request ─> API Gateway HTTP API ─> Lambda (not VPC-attached)
                                                    ├─ SAM.gov opportunity and entity HTTPS APIs
                                                    ├─ SSM Parameter Store
+                                                   ├─ Amazon Bedrock (feature-gated search planning)
                                                    ├─ private S3 search cache
                                                    └─ DynamoDB user state
 ```
@@ -104,6 +105,9 @@ One DynamoDB table stores user-owned records. Cognito's immutable `sub` claim is
 | `USER#<sub>` | `HISTORY#` | Search history with a DynamoDB expiration timestamp |
 | `USER#<sub>` | `DAILY_NOTIFICATION#` | Editable notification definition and recipient |
 | `USER#<sub>` | `NOTIFICATION_RUN#` | Daily run summary, criteria snapshot, and email status |
+| `USER#<sub>` | `SETTINGS` | Company assignment, company role, and per-user feature flags |
+| `SYSTEM#COMPANIES` | `COMPANY#<id>` | Company workspace metadata |
+| `COMPANY#<id>` | `PROFILE` | One shared profile used by all assigned company users |
 | `NOTIFICATION_RESULTS#...` | `RESULT#` | Cursor-paginated opportunity snapshots for one daily run |
 | `DAILY_FEED#<date>` | `META` / `PAGE#` | Feed status and completed-page manifest |
 
@@ -119,6 +123,8 @@ remain scoped to the authenticated user's partition key.
 - API Gateway validates Cognito JWT issuer and audience before Lambda is invoked.
 - Google sign-in is limited to verified Google email addresses that match an existing invited Cognito user. The pre-sign-up trigger links the provider to that user so the original Cognito `sub`, role groups, and DynamoDB data remain unchanged.
 - Lambda independently requires the `admin` group for every `/admin/*` operation; hiding the Admin menu is not the authorization boundary.
+- Company profile edits and membership operations require either the platform `admin` group or the shared company's `manager` role. Company managers can invite regular users or remove their company assignment, but cannot grant a platform-admin role or delete an account.
+- The natural-language builder requires a server-side per-user `natural_language_search` flag. Bedrock receives the user's request and, when selected, the shared company profile; it returns only an allowlisted filter plan that passes the same date and fan-out validation as a manual search. The user reviews or edits those filters before SAM.gov is queried.
 - Website and cache buckets block all public access.
 - CloudFront alone can read the website bucket through signed origin access control.
 - Search descriptions are converted to plain text; frontend code never renders SAM.gov HTML.

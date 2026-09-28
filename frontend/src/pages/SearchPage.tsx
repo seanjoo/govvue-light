@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import OpportunityCard from '../components/OpportunityCard';
 import Pagination from '../components/Pagination';
 import MultiSelectFilter, {
@@ -12,7 +12,7 @@ import PostedDateFilter from '../components/PostedDateFilter';
 import InfoTip from '../components/InfoTip';
 import { api } from '../lib/api';
 import { createNotificationDraft } from '../lib/notificationDraft';
-import type { Opportunity, ResultNavigation, SearchResponse } from '../types';
+import type { Opportunity, ResultNavigation, SearchInterpretation, SearchResponse, UserContext } from '../types';
 
 const today = new Date();
 const prior = new Date(today);
@@ -67,11 +67,20 @@ export default function SearchPage() {
   const [message, setMessage] = useState('');
   const [page, setPage] = useState(Number(searchParams.get('page') ?? '1'));
   const [lastSearchCriteria, setLastSearchCriteria] = useState<Record<string, string> | null>(null);
+  const [userContext, setUserContext] = useState<UserContext | null>(null);
+  const [aiQuery, setAiQuery] = useState('');
+  const [profileMode, setProfileMode] = useState<'auto' | 'include' | 'exclude'>('auto');
+  const [buildingPlan, setBuildingPlan] = useState(false);
+  const [interpretation, setInterpretation] = useState<SearchInterpretation | null>(null);
 
   const hasInitialCriteria = [...searchParams.keys()].some((key) => key !== 'page');
   useEffect(() => {
     if (hasInitialCriteria) runSearch(page, false);
   }, []); // saved-search URL should run once
+
+  useEffect(() => {
+    api<UserContext>('/me').then(setUserContext).catch(() => undefined);
+  }, []);
 
   function update(name: string, value: string) {
     setFilters((current) => ({ ...current, [name]: value }));
@@ -150,12 +159,76 @@ export default function SearchPage() {
     });
   }
 
+  async function buildAiSearch(event: FormEvent) {
+    event.preventDefault();
+    setBuildingPlan(true);
+    setError('');
+    setMessage('');
+    try {
+      const plan = await api<SearchInterpretation>('/opportunities/search/interpret', {
+        method: 'POST',
+        body: JSON.stringify({ query: aiQuery, profile_mode: profileMode }),
+      });
+      const next = { ...EMPTY_FILTERS, ...plan.criteria };
+      if (next.posted_within) {
+        next.posted_from = '';
+        next.posted_to = '';
+        setPostedDateMode('rolling');
+      } else {
+        next.posted_from ||= iso(prior);
+        next.posted_to ||= iso(today);
+        setPostedDateMode('range');
+      }
+      setFilters(next);
+      setInterpretation(plan);
+      setResult(null);
+      setLastSearchCriteria(null);
+      setMessage('Search filters are ready. Review or edit them, then search SAM.gov.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to build the search');
+    } finally {
+      setBuildingPlan(false);
+    }
+  }
+
   return (
     <>
       <div className="page-heading">
         <div><p className="page-kicker">SAM.gov Contract Opportunities</p><h1>Search active opportunities</h1></div>
         <button type="button" className="usa-button usa-button--outline" onClick={saveCurrentSearch}>Save this search</button>
       </div>
+      {userContext?.features.includes('natural_language_search') && (
+        <section className="ai-search-builder" aria-labelledby="ai-search-heading">
+          <div className="ai-search-builder__heading">
+            <div><p className="page-kicker">AI search builder</p><h2 id="ai-search-heading">Describe what you want to find</h2></div>
+            <span className="status-pill status-pill--enabled">Preview</span>
+          </div>
+          <form onSubmit={buildAiSearch}>
+            <label className="usa-label" htmlFor="ai-search-query">Opportunity description</label>
+            <span className="usa-hint">Use plain language. The builder creates existing SAM.gov filters for you; it does not rank or process results with AI.</span>
+            <textarea className="usa-textarea maxw-none" id="ai-search-query" rows={4} required minLength={5} maxLength={2000} value={aiQuery} onChange={(event) => setAiQuery(event.target.value)} placeholder="Example: Find custom web application development and O&M support opportunities in the defense sector that fit our company." />
+            <div className="ai-search-builder__actions">
+              <div>
+                <label className="usa-label" htmlFor="profile-mode">Company profile</label>
+                <select className="usa-select" id="profile-mode" value={profileMode} onChange={(event) => setProfileMode(event.target.value as 'auto' | 'include' | 'exclude')}>
+                  <option value="auto">Use automatically when relevant</option>
+                  <option value="include">Always use company profile</option>
+                  <option value="exclude">Do not use company profile</option>
+                </select>
+              </div>
+              <button className="usa-button" type="submit" disabled={buildingPlan}>{buildingPlan ? 'Building filters…' : 'Build search filters'}</button>
+            </div>
+            <p className="usa-hint">{userContext.company ? <>Shared profile: <Link to="/company-profile">{userContext.company.name}</Link></> : <>No company profile is assigned. Ask an administrator to assign your account.</>}</p>
+          </form>
+          {interpretation && (
+            <div className="ai-search-plan" role="status">
+              <strong>{interpretation.interpretation}</strong>
+              <p>{interpretation.used_company_profile ? `Used ${interpretation.company_name || 'your company'}’s shared profile.` : 'The company profile was not used for this plan.'}</p>
+              {interpretation.assumptions.length > 0 && <details><summary>Assumptions</summary><ul>{interpretation.assumptions.map((value) => <li key={value}>{value}</li>)}</ul></details>}
+            </div>
+          )}
+        </section>
+      )}
       <form className="search-panel" onSubmit={submit}>
         <div className="grid-row grid-gap">
           <div className="tablet:grid-col-6">
@@ -185,7 +258,7 @@ export default function SearchPage() {
           <div className="grid-row grid-gap">
             <Filter label="Solicitation number" name="solicitation_number" value={filters.solicitation_number} update={update} />
             <Filter label="PSC / classification code" name="classification_code" value={filters.classification_code} update={update} hint="Separate multiple codes with commas." />
-            <Filter label="Organization" name="organization_name" value={filters.organization_name} update={update} />
+            <Filter label="Organization" name="organization_name" value={filters.organization_name} update={update} hint="Use one organization, or separate multiple exact organization names with |." />
             <PostedDateFilter
               mode={postedDateMode}
               postedFrom={filters.posted_from}

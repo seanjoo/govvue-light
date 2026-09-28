@@ -5,13 +5,23 @@ Except for `/health`, requests require a Cognito ID token in `Authorization: Bea
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/health` | Unauthenticated service health |
-| `GET` | `/me` | Current Cognito identity, role, and group memberships |
+| `GET` | `/me` | Current identity, platform role, company assignment, and feature flags |
+| `GET` | `/admin/companies` | Admin-only company workspace list |
+| `POST` | `/admin/companies` | Admin-only company workspace creation |
 | `GET` | `/admin/users` | Admin-only Cognito user list |
 | `POST` | `/admin/users` | Admin-only user invitation using `email` and optional `role` |
 | `PUT` | `/admin/users/{username}` | Admin-only role and enabled-status update |
 | `DELETE` | `/admin/users/{username}` | Admin-only account and GovVue user-data deletion |
 | `POST` | `/admin/users/{username}/reset-password` | Admin-only reset email or invitation resend |
+| `PUT` | `/admin/users/{username}/access` | Admin-only company assignment, company role, and feature toggles |
 | `GET` | `/opportunities/search` | Search active SAM.gov opportunities |
+| `POST` | `/opportunities/search/interpret` | Feature-gated Bedrock plan that returns editable opportunity filters |
+| `GET` | `/company-profile` | Read the authenticated user's shared company profile |
+| `PUT` | `/company-profile` | Company-manager or admin profile update |
+| `GET` | `/company-members` | Company-manager or admin member list |
+| `POST` | `/company-members` | Invite a regular Cognito user into the current company |
+| `PUT` | `/company-members/{username}` | Change another member's company role |
+| `DELETE` | `/company-members/{username}` | Remove another user's company assignment without deleting the account |
 | `GET` | `/opportunities/{noticeId}` | Basic details and plain-text description |
 | `GET` | `/entities/search` | Search SAM.gov Entity Management API v4 |
 | `GET` | `/saved-opportunities` | List the user's saved opportunities |
@@ -73,6 +83,10 @@ use OR semantics; different filters use AND semantics. GovVue sends multiple
 value for the other listed parameters, GovVue expands those selections into a
 bounded cross-product, runs the requests concurrently, and deduplicates the
 converged results by Notice ID. `search_max_fanout` limits that cross-product.
+
+`organization_name` also supports OR matching, using `|` between exact
+organization names so commas that are part of an official organization name
+remain unambiguous. These values participate in the same bounded fan-out.
 
 The browser's NAICS picker is generated from the official 2022 Census NAICS
 hierarchy and emits comma-separated six-digit `naics_code` values. Parent

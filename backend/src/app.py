@@ -18,6 +18,7 @@ import boto3
 
 import storage
 import user_admin
+from search_interpreter import SearchInterpreterError, interpret_search
 from sam_entity_client import (
     build_entity_search_parameters,
     sanitize_entity_criteria,
@@ -122,6 +123,51 @@ def _groups(event: dict[str, Any]) -> list[str]:
 def _require_admin(event: dict[str, Any]) -> None:
     if "admin" not in _groups(event):
         raise ForbiddenError("Administrator role is required")
+
+
+def _access_context(event: dict[str, Any], user_id: str) -> dict[str, Any]:
+    settings = storage.get_user_settings(user_id)
+    company = storage.get_company(settings["company_id"])
+    is_admin = "admin" in _groups(event)
+    return {
+        **settings,
+        "company": company,
+        "can_edit_company_profile": is_admin or settings["company_role"] == "manager",
+    }
+
+
+def _admin_users() -> list[dict[str, Any]]:
+    companies = {item["company_id"]: item for item in storage.list_companies()}
+    items: list[dict[str, Any]] = []
+    for user in user_admin.list_users():
+        settings = storage.get_user_settings(str(user.get("sub") or ""))
+        company = companies.get(settings["company_id"])
+        items.append(
+            {
+                **user,
+                **settings,
+                "company_name": company["name"] if company else "",
+            }
+        )
+    return items
+
+
+def _require_company_manager(event: dict[str, Any], user_id: str) -> dict[str, Any]:
+    access = _access_context(event, user_id)
+    if not access["company_id"]:
+        raise ForbiddenError("Your account is not assigned to a company")
+    if not access["can_edit_company_profile"]:
+        raise ForbiddenError("Company manager or administrator role is required")
+    return access
+
+
+def _company_members(company_id: str) -> list[dict[str, Any]]:
+    members: list[dict[str, Any]] = []
+    for user in user_admin.list_users():
+        settings = storage.get_user_settings(str(user.get("sub") or ""))
+        if settings["company_id"] == company_id:
+            members.append({**user, **settings})
+    return members
 
 
 def _query(event: dict[str, Any]) -> dict[str, str]:
@@ -402,6 +448,7 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
     if method == "GET" and path == "/me":
         claims = _claims(event)
         groups = _groups(event)
+        access = _access_context(event, user_id)
         return response(
             200,
             {
@@ -409,19 +456,50 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                 "email": claims.get("email", ""),
                 "role": "admin" if "admin" in groups else "user",
                 "groups": groups,
+                **access,
             },
         )
+
+    if path == "/admin/companies":
+        _require_admin(event)
+        if method == "GET":
+            return response(200, {"items": storage.list_companies()})
+        if method == "POST":
+            return response(201, storage.create_company(str(_body(event).get("name") or "")))
 
     if path == "/admin/users":
         _require_admin(event)
         if method == "GET":
-            return response(200, {"items": user_admin.list_users()})
+            return response(200, {"items": _admin_users()})
         if method == "POST":
             payload = _body(event)
             return response(
                 201,
                 user_admin.create_user(payload.get("email"), payload.get("role", "user")),
             )
+
+    access_match = re.fullmatch(r"/admin/users/([^/]+)/access", path)
+    if method == "PUT" and access_match:
+        from urllib.parse import unquote
+
+        _require_admin(event)
+        target = user_admin.get_user(unquote(access_match.group(1)))
+        target_sub = str(target.get("sub") or "")
+        if not target_sub:
+            raise ValueError("Target user identity is missing")
+        payload = _body(event)
+        features = payload.get("features") or []
+        if not isinstance(features, list):
+            raise ValueError("features must be an array")
+        return response(
+            200,
+            storage.put_user_settings(
+                target_sub,
+                str(payload.get("company_id") or ""),
+                str(payload.get("company_role") or "member"),
+                [str(value) for value in features],
+            ),
+        )
 
     reset_user_match = re.fullmatch(r"/admin/users/([^/]+)/reset-password", path)
     if method == "POST" and reset_user_match:
@@ -461,6 +539,112 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
 
     if method == "GET" and path == "/opportunities/search":
         return response(200, _search(event, user_id))
+
+    if method == "POST" and path == "/opportunities/search/interpret":
+        access = _access_context(event, user_id)
+        if "natural_language_search" not in access["features"]:
+            raise ForbiddenError("AI search builder is not enabled for this account")
+        payload = _body(event)
+        profile = (
+            storage.get_company_profile(access["company_id"])
+            if access["company_id"]
+            else {}
+        )
+        plan = interpret_search(
+            str(payload.get("query") or ""),
+            str(payload.get("profile_mode") or "auto"),
+            profile,
+            get_runtime_config(),
+        )
+        company = access.get("company") or {}
+        return response(
+            200,
+            {
+                **plan,
+                "company_id": access["company_id"],
+                "company_name": company.get("name", ""),
+            },
+        )
+
+    if path == "/company-profile":
+        access = _access_context(event, user_id)
+        company = access.get("company")
+        if not company:
+            raise LookupError("Your account is not assigned to a company")
+        if method == "GET":
+            return response(
+                200,
+                {
+                    "company": company,
+                    "profile": storage.get_company_profile(access["company_id"]),
+                    "can_edit": access["can_edit_company_profile"],
+                },
+            )
+        if method == "PUT":
+            if not access["can_edit_company_profile"]:
+                raise ForbiddenError("Company manager or administrator role is required")
+            payload = _body(event)
+            profile = payload.get("profile") or payload
+            if not isinstance(profile, dict):
+                raise ValueError("profile must be a JSON object")
+            return response(
+                200,
+                {
+                    "company": company,
+                    "profile": storage.put_company_profile(access["company_id"], profile),
+                    "can_edit": True,
+                },
+            )
+
+    if path == "/company-members":
+        access = _require_company_manager(event, user_id)
+        if method == "GET":
+            return response(200, {"items": _company_members(access["company_id"])})
+        if method == "POST":
+            payload = _body(event)
+            company_role = str(payload.get("company_role") or "member")
+            created = user_admin.create_user(payload.get("email"), "user")
+            try:
+                settings = storage.put_user_settings(
+                    str(created.get("sub") or ""),
+                    access["company_id"],
+                    company_role,
+                    [],
+                )
+            except Exception:
+                user_admin.delete_user(str(created.get("username") or ""))
+                raise
+            return response(201, {**created, **settings})
+
+    company_member_match = re.fullmatch(r"/company-members/([^/]+)", path)
+    if company_member_match:
+        from urllib.parse import unquote
+
+        access = _require_company_manager(event, user_id)
+        username = unquote(company_member_match.group(1))
+        target = user_admin.get_user(username)
+        target_sub = str(target.get("sub") or "")
+        target_settings = storage.get_user_settings(target_sub)
+        if target_settings["company_id"] != access["company_id"]:
+            raise LookupError("Company member not found")
+        if target_sub == user_id:
+            raise ValueError("Use another company manager to change your own membership")
+        if method == "PUT":
+            updated = storage.put_user_settings(
+                target_sub,
+                access["company_id"],
+                str(_body(event).get("company_role") or "member"),
+                target_settings["features"],
+            )
+            return response(200, {**target, **updated})
+        if method == "DELETE":
+            storage.put_user_settings(
+                target_sub,
+                "",
+                "member",
+                target_settings["features"],
+            )
+            return response(200, {"removed": True})
 
     if method == "GET" and path == "/entities/search":
         return response(200, _entity_search(event))
@@ -680,6 +864,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     except SamApiError as exc:
         LOGGER.warning("SAM.gov request failed: %s", exc)
         return response(exc.status_code, {"message": str(exc), "request_id": request_id})
+    except SearchInterpreterError as exc:
+        LOGGER.warning("AI search interpretation failed: %s", exc)
+        return response(502, {"message": str(exc), "request_id": request_id})
     except Exception:
         LOGGER.exception("Unhandled API error request_id=%s", request_id)
         return response(500, {"message": "Unexpected server error", "request_id": request_id})

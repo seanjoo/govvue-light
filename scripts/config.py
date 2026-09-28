@@ -34,6 +34,8 @@ REQUIRED = (
     "daily_feed_schedule_expression",
     "daily_feed_timezone",
     "daily_notification_default_time",
+    "ai_search_model_id",
+    "ai_search_max_tokens",
 )
 
 
@@ -92,6 +94,7 @@ def validate(data: dict[str, Any]) -> list[str]:
         "daily_feed_page_size",
         "daily_feed_retention_days",
         "notification_run_retention_days",
+        "ai_search_max_tokens",
     ):
         try:
             if int(data.get(key, 0)) <= 0:

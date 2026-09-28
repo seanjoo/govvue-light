@@ -41,6 +41,8 @@ PARAMETERS: dict[str, tuple[str, str, str]] = {
     "DailyFeedPageSize": ("daily_feed_page_size", "String", "SAM.gov records fetched by each daily feed invocation"),
     "DailyFeedRetentionDays": ("daily_feed_retention_days", "String", "Daily feed snapshot retention"),
     "NotificationRunRetentionDays": ("notification_run_retention_days", "String", "Daily notification result retention"),
+    "AiSearchModelId": ("ai_search_model_id", "String", "Bedrock model for natural-language search planning"),
+    "AiSearchMaxTokens": ("ai_search_max_tokens", "String", "Maximum Bedrock response tokens for search planning"),
     "DailyFeedScheduleExpression": ("daily_feed_schedule_expression", "String", "Daily EventBridge schedule expression"),
     "DailyFeedTimezone": ("daily_feed_timezone", "String", "Daily EventBridge schedule time zone"),
     "DailyNotificationDefaultTime": ("daily_notification_default_time", "String", "Default daily notification time"),

@@ -27,6 +27,8 @@ class RuntimeConfig:
     daily_feed_page_size: int
     daily_feed_retention_days: int
     notification_run_retention_days: int
+    ai_search_model_id: str = "amazon.nova-lite-v1:0"
+    ai_search_max_tokens: int = 1000
     daily_notification_default_time: str = "06:15"
 
 
@@ -46,6 +48,8 @@ _PARAMETERS = {
     "DailyFeedPageSize": "daily_feed_page_size",
     "DailyFeedRetentionDays": "daily_feed_retention_days",
     "NotificationRunRetentionDays": "notification_run_retention_days",
+    "AiSearchModelId": "ai_search_model_id",
+    "AiSearchMaxTokens": "ai_search_max_tokens",
     "DailyNotificationDefaultTime": "daily_notification_default_time",
 }
 _INTEGER_FIELDS = {
@@ -60,6 +64,7 @@ _INTEGER_FIELDS = {
     "daily_feed_page_size",
     "daily_feed_retention_days",
     "notification_run_retention_days",
+    "ai_search_max_tokens",
 }
 _lock = threading.Lock()
 _cached: RuntimeConfig | None = None
@@ -113,6 +118,8 @@ def get_runtime_config() -> RuntimeConfig:
         search_max_sort_pages = int(kwargs["search_max_sort_pages"])
         if search_max_sort_pages < 1 or search_max_sort_pages > 50:
             raise RuntimeError("SearchMaxSortPages must be between 1 and 50")
+        if int(kwargs["ai_search_max_tokens"]) < 100:
+            raise RuntimeError("AiSearchMaxTokens must be at least 100")
         default_time = str(kwargs["daily_notification_default_time"])
         try:
             hour, minute = (int(part) for part in default_time.split(":"))

@@ -40,6 +40,7 @@ MULTI_VALUE_FILTERS = {
     "set_aside",
     "naics_code",
     "classification_code",
+    "organization_name",
 }
 NATIVE_MULTI_VALUE_PARAMETERS = {"ptype"}
 MAX_VALUES_PER_FILTER = 20
@@ -105,7 +106,8 @@ def _is_truthy(value: Any) -> bool:
 def _split_multi_value(raw: str, field_name: str) -> list[str]:
     values: list[str] = []
     seen: set[str] = set()
-    for part in raw.split(","):
+    separator = "|" if field_name == "organization_name" else ","
+    for part in raw.split(separator):
         value = part.strip()[:200]
         normalized = value.casefold()
         if value and normalized not in seen:

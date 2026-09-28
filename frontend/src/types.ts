@@ -41,6 +41,65 @@ export interface SearchResponse {
   sort: string;
 }
 
+export interface Company {
+  company_id: string;
+  name: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface UserContext {
+  sub: string;
+  email: string;
+  role: 'admin' | 'user';
+  groups: string[];
+  company_id: string;
+  company_role: 'manager' | 'member';
+  company: Company | null;
+  features: string[];
+  can_edit_company_profile: boolean;
+}
+
+export interface CompanyProfile {
+  overview: string;
+  capabilities: string;
+  differentiators: string;
+  past_performance: string;
+  naics_codes: string;
+  psc_codes: string;
+  target_agencies: string;
+  set_aside_eligibility: string;
+  positive_keywords: string;
+  negative_keywords: string;
+}
+
+export interface CompanyProfileResponse {
+  company: Company;
+  profile: CompanyProfile;
+  can_edit: boolean;
+}
+
+export interface CompanyMember {
+  username: string;
+  sub: string;
+  email: string;
+  enabled: boolean;
+  status: string;
+  company_id: string;
+  company_role: 'manager' | 'member';
+  features: string[];
+  ses_status?: string;
+}
+
+export interface SearchInterpretation {
+  used_company_profile: boolean;
+  interpretation: string;
+  assumptions: string[];
+  criteria: Record<string, string>;
+  company_id: string;
+  company_name: string;
+}
+
 export interface ResultNavigation {
   kind: 'opportunity' | 'entity';
   ids: string[];
@@ -176,4 +235,8 @@ export interface AdminUser {
   created_at: string;
   updated_at: string;
   ses_status?: string;
+  company_id: string;
+  company_name: string;
+  company_role: 'manager' | 'member';
+  features: string[];
 }

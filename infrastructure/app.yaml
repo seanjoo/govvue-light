@@ -740,6 +740,10 @@ Resources:
                 Effect: Allow
                 Action: sqs:SendMessage
                 Resource: !GetAtt DailyFeedQueue.Arn
+              - Sid: InterpretOpportunitySearches
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/*'
               - Sid: ReadRuntimeConfiguration
                 Effect: Allow
                 Action:

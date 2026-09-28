@@ -32,6 +32,7 @@ class RuntimeConfigTests(unittest.TestCase):
                             "DailyFeedPageSize",
                             "DailyFeedRetentionDays",
                             "NotificationRunRetentionDays",
+                            "AiSearchMaxTokens",
                         } else "value",
                     }
                     for name in Names

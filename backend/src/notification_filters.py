@@ -62,6 +62,14 @@ def _contains(actual: Any, expected: str) -> bool:
     return _text(expected) in _text(actual)
 
 
+def _contains_any(actual: Any, expected: str, separator: str = ",") -> bool:
+    return any(
+        _text(value) in _text(actual)
+        for value in expected.split(separator)
+        if value.strip()
+    )
+
+
 def _one_of(actual_values: list[Any], expected: str) -> bool:
     values = [_text(value) for value in actual_values]
     requested = [_text(value) for value in expected.split(",") if value.strip()]
@@ -90,7 +98,11 @@ def matches(opportunity: dict[str, Any], criteria: dict[str, str]) -> bool:
         ),
     }
     for key, actual in contains_fields.items():
-        if key in criteria and not _contains(actual, criteria[key]):
+        if key in criteria and not (
+            _contains_any(actual, criteria[key], "|")
+            if key == "organization_name"
+            else _contains(actual, criteria[key])
+        ):
             return False
 
     exact_fields = {

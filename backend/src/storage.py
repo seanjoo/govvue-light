@@ -83,6 +83,162 @@ def _query(user_id: str, prefix: str) -> list[dict[str, Any]]:
     return response.get("Items", [])
 
 
+def get_user_settings(user_id: str) -> dict[str, Any]:
+    response = table().get_item(
+        Key={"PK": f"USER#{user_id}", "SK": "SETTINGS"},
+        ConsistentRead=True,
+    )
+    item = response.get("Item") or {}
+    return {
+        "company_id": str(item.get("companyId") or ""),
+        "company_role": str(item.get("companyRole") or "member"),
+        "features": sorted(
+            {str(value) for value in (item.get("features") or []) if str(value)}
+        ),
+    }
+
+
+def put_user_settings(
+    user_id: str,
+    company_id: str,
+    company_role: str,
+    features: list[str],
+) -> dict[str, Any]:
+    clean_company_id = str(company_id or "").strip()
+    if clean_company_id and not get_company(clean_company_id):
+        raise ValueError("Company not found")
+    clean_role = str(company_role or "member").strip().lower()
+    if clean_role not in {"manager", "member"}:
+        raise ValueError("company_role must be manager or member")
+    allowed_features = {"natural_language_search"}
+    clean_features = sorted(
+        {str(value).strip() for value in features if str(value).strip() in allowed_features}
+    )
+    now = int(time.time())
+    table().put_item(
+        Item={
+            "PK": f"USER#{user_id}",
+            "SK": "SETTINGS",
+            "entityType": "userSettings",
+            "companyId": clean_company_id,
+            "companyRole": clean_role,
+            "features": clean_features,
+            "updatedAt": now,
+        }
+    )
+    return {
+        "company_id": clean_company_id,
+        "company_role": clean_role,
+        "features": clean_features,
+    }
+
+
+def list_companies() -> list[dict[str, Any]]:
+    response = table().query(
+        KeyConditionExpression=Key("PK").eq("SYSTEM#COMPANIES")
+        & Key("SK").begins_with("COMPANY#"),
+    )
+    companies = [
+        {
+            "company_id": str(item.get("companyId") or ""),
+            "name": str(item.get("name") or ""),
+            "created_at": int(item.get("createdAt") or 0),
+            "updated_at": int(item.get("updatedAt") or 0),
+        }
+        for item in response.get("Items", [])
+    ]
+    return sorted(companies, key=lambda value: value["name"].casefold())
+
+
+def get_company(company_id: str) -> dict[str, Any] | None:
+    clean_id = str(company_id or "").strip()
+    if not clean_id:
+        return None
+    response = table().get_item(
+        Key={"PK": "SYSTEM#COMPANIES", "SK": f"COMPANY#{clean_id}"},
+        ConsistentRead=True,
+    )
+    item = response.get("Item")
+    if not item:
+        return None
+    return {
+        "company_id": str(item.get("companyId") or clean_id),
+        "name": str(item.get("name") or ""),
+        "created_at": int(item.get("createdAt") or 0),
+        "updated_at": int(item.get("updatedAt") or 0),
+    }
+
+
+def create_company(name: str) -> dict[str, Any]:
+    clean_name = re.sub(r"\s+", " ", str(name or "")).strip()[:120]
+    if len(clean_name) < 2:
+        raise ValueError("Company name is required")
+    if any(item["name"].casefold() == clean_name.casefold() for item in list_companies()):
+        raise ValueError("A company with this name already exists")
+    company_id = uuid.uuid4().hex
+    now = int(time.time())
+    table().put_item(
+        Item={
+            "PK": "SYSTEM#COMPANIES",
+            "SK": f"COMPANY#{company_id}",
+            "entityType": "company",
+            "companyId": company_id,
+            "name": clean_name,
+            "createdAt": now,
+            "updatedAt": now,
+        },
+        ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+    )
+    return {
+        "company_id": company_id,
+        "name": clean_name,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+COMPANY_PROFILE_FIELDS = {
+    "overview",
+    "capabilities",
+    "differentiators",
+    "past_performance",
+    "naics_codes",
+    "psc_codes",
+    "target_agencies",
+    "set_aside_eligibility",
+    "positive_keywords",
+    "negative_keywords",
+}
+
+
+def get_company_profile(company_id: str) -> dict[str, str]:
+    response = table().get_item(
+        Key={"PK": f"COMPANY#{company_id}", "SK": "PROFILE"},
+        ConsistentRead=True,
+    )
+    profile = (response.get("Item") or {}).get("profile") or {}
+    return {field: str(profile.get(field) or "") for field in COMPANY_PROFILE_FIELDS}
+
+
+def put_company_profile(company_id: str, profile: dict[str, Any]) -> dict[str, str]:
+    if not get_company(company_id):
+        raise ValueError("Company not found")
+    clean = {
+        field: str(profile.get(field) or "").strip()[:4000]
+        for field in COMPANY_PROFILE_FIELDS
+    }
+    table().put_item(
+        Item={
+            "PK": f"COMPANY#{company_id}",
+            "SK": "PROFILE",
+            "entityType": "companyProfile",
+            "profile": clean,
+            "updatedAt": int(time.time()),
+        }
+    )
+    return clean
+
+
 def list_saved_opportunities(user_id: str) -> list[dict[str, Any]]:
     return [item["opportunity"] | {"saved_at": item["savedAt"]} for item in _query(user_id, "SAVED_OPP#")]
 

@@ -135,12 +135,17 @@ class SearchParameterTests(unittest.TestCase):
                 "ptype": "o, p, o, k",
                 "state": "VA, MD",
                 "set_aside": "SBA, 8A",
+                "organization_name": "Department of Defense|Department of the Navy",
             },
             config(),
         )
         self.assertEqual(params["ptype"], ["k", "o", "p"])
         self.assertEqual(params["state"], ["MD", "VA"])
         self.assertEqual(params["typeOfSetAside"], ["8A", "SBA"])
+        self.assertEqual(
+            params["organizationName"],
+            ["Department of Defense", "Department of the Navy"],
+        )
         self.assertNotIn("setaside", params)
 
     def test_expands_only_sam_single_value_filters(self):

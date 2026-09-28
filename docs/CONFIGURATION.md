@@ -68,6 +68,8 @@ The default prefix is `/govvue-light/dev/`.
 | `daily_feed_page_size` | `DailyFeedPageSize` | `String` | Daily feed Lambda runtime |
 | `daily_feed_retention_days` | `DailyFeedRetentionDays` | `String` | S3 and DynamoDB feed retention |
 | `notification_run_retention_days` | `NotificationRunRetentionDays` | `String` | Notification Lambda runtime |
+| `ai_search_model_id` | `AiSearchModelId` | `String` | API Lambda/Amazon Bedrock |
+| `ai_search_max_tokens` | `AiSearchMaxTokens` | `String` | API Lambda/Amazon Bedrock |
 | `daily_notification_default_time` | `DailyNotificationDefaultTime` | `String` | API and daily-feed Lambda runtime |
 | `daily_feed_schedule_expression` | `DailyFeedScheduleExpression` | `String` | CloudFormation/EventBridge Scheduler |
 | `daily_feed_timezone` | `DailyFeedTimezone` | `String` | CloudFormation/EventBridge Scheduler |
@@ -75,6 +77,12 @@ The default prefix is `/govvue-light/dev/`.
 | `ses_identity_domain` | `SesIdentityDomain` | `String` | CloudFormation/Amazon SES |
 
 `project_name`, `environment`, `aws_profile`, and `aws_region` are deployment identifiers needed before an SSM path or AWS connection can be resolved. `aws_profile` is validated as `workshop`; profiles from the retired GovVue project are not accepted.
+
+The initial AI search model is `amazon.nova-lite-v1:0`. The API Lambda is
+permitted to invoke Bedrock foundation models, but no model call occurs unless
+the authenticated user has the `natural_language_search` feature flag and
+submits the AI builder form. The model produces filter criteria only; SAM.gov
+still supplies all opportunity results.
 
 ## Synchronization
 
@@ -117,7 +125,8 @@ Never place the key in `infrastructure/*.yaml`, frontend code, a Lambda environm
 on-demand multi-value search. The default is 12. Selecting multiple notice
 types does not consume fan-out slots because SAM.gov accepts repeated `ptype`
 parameters in one request. Selections for state, set-aside, NAICS, PSC, ZIP,
-and organization code are multiplied together. For example, three states and
+organization code, and organization name are multiplied together. Organization
+names use `|` as their separator; the other multi-value fields use commas. For example, three states and
 two NAICS codes require six SAM.gov searches. Cached upstream pages are reused
 across display pages and equivalent searches.
 
