@@ -184,8 +184,12 @@ a { color: #005ea8; }
 .admin-create-user h2 { margin-top: 0; }
 .admin-create-company { margin-bottom: 2rem; }
 .admin-create-company h2 { margin-top: 0; }
-.admin-create-company__controls { display: grid; grid-template-columns: minmax(16rem, 32rem) auto; align-items: end; gap: 1rem; }
+.admin-create-company__controls { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(16rem, 1fr) auto; align-items: end; gap: 1rem; }
 .admin-create-company__controls .usa-button { margin: 0 0 .05rem; }
+.admin-company-list { display: grid; gap: .75rem; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #dfe1e2; }
+.admin-company-card { display: grid; grid-template-columns: minmax(12rem, .8fr) minmax(16rem, 1.2fr); gap: 1rem; padding: 1rem; border: 1px solid #dfe1e2; background: #f7f9fa; }
+.admin-company-card h3, .admin-company-card p { margin: 0; }
+.admin-company-card p, .admin-company-card span { display: block; margin-top: .25rem; color: #565c65; }
 .admin-user-list { display: grid; gap: 1rem; }
 .admin-user-card { padding: 1.25rem 1.5rem; border: 1px solid #dfe1e2; border-left: 5px solid #73b3e7; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
 .admin-user-card__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
@@ -311,7 +315,7 @@ a { color: #005ea8; }
   .detail-action-bar { position: static; margin: -2.5rem -1rem 1rem; padding: 1rem; }
   .history-list li { flex-direction: column; }
   .admin-user-card__controls { grid-template-columns: 1fr; gap: .5rem; }
-  .admin-user-card__access-grid, .company-profile__fields, .company-members__invite, .company-member, .admin-create-company__controls, .ai-search-builder__actions { grid-template-columns: 1fr; }
+  .admin-user-card__access-grid, .company-profile__fields, .company-members__invite, .company-member, .admin-create-company__controls, .admin-company-card, .ai-search-builder__actions { grid-template-columns: 1fr; }
   .company-profile__fields > div:nth-child(-n+4) { grid-column: auto; }
   .ai-search-builder { padding: 1rem; }
   .ai-search-builder__heading { align-items: flex-start; flex-direction: column; }

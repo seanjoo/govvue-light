@@ -1,17 +1,18 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { api } from '../lib/api';
-import type { AdminUser, Company } from '../types';
+import type { AdminCompany, AdminUser } from '../types';
 
 export default function AdminUsersPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companies, setCompanies] = useState<AdminCompany[]>([]);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'user' | 'admin'>('user');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [companyName, setCompanyName] = useState('');
+  const [initialManager, setInitialManager] = useState('');
   const [creatingCompany, setCreatingCompany] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -21,7 +22,7 @@ export default function AdminUsersPage() {
     try {
       const [userResponse, companyResponse] = await Promise.all([
         api<{ items: AdminUser[] }>('/admin/users'),
-        api<{ items: Company[] }>('/admin/companies'),
+        api<{ items: AdminCompany[] }>('/admin/companies'),
       ]);
       setUsers(userResponse.items);
       setCompanies(companyResponse.items);
@@ -38,12 +39,13 @@ export default function AdminUsersPage() {
     setError('');
     setMessage('');
     try {
-      const created = await api<Company>('/admin/companies', {
+      const created = await api<AdminCompany>('/admin/companies', {
         method: 'POST',
-        body: JSON.stringify({ name: companyName }),
+        body: JSON.stringify({ name: companyName, manager_username: initialManager }),
       });
       setCompanyName('');
-      setMessage(`Created company workspace “${created.name}”.`);
+      setInitialManager('');
+      setMessage(`Created “${created.name}”, its shared profile, and the initial company-manager assignment.`);
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to create company');
@@ -141,7 +143,8 @@ export default function AdminUsersPage() {
 
   return (
     <>
-      <div className="page-heading"><div><p className="page-kicker">Administration</p><h1>Manage users</h1></div></div>
+      <div className="page-heading"><div><p className="page-kicker">Administration</p><h1>Manage users and companies</h1></div></div>
+      <div className="usa-alert usa-alert--info margin-bottom-3"><div className="usa-alert__body"><p className="usa-alert__text"><strong>GovVue administrators</strong> manage the whole application. <strong>Company managers</strong> maintain one company profile and its members, but cannot grant GovVue administrator access.</p></div></div>
       <form className="search-panel admin-create-user" onSubmit={create}>
         <h2>Add user</h2>
         <p className="text-base">Cognito generates and emails a temporary password. The user must replace it during first sign-in.</p>
@@ -151,7 +154,7 @@ export default function AdminUsersPage() {
             <input className="usa-input maxw-none" id="admin-new-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
           </div>
           <div className="tablet:grid-col-4">
-            <label className="usa-label" htmlFor="admin-new-role">Role</label>
+            <label className="usa-label" htmlFor="admin-new-role">GovVue role</label>
             <select className="usa-select maxw-none" id="admin-new-role" value={role} onChange={(event) => setRole(event.target.value as 'user' | 'admin')}>
               <option value="user">User</option>
               <option value="admin">Administrator</option>
@@ -162,15 +165,33 @@ export default function AdminUsersPage() {
       </form>
 
       <form className="search-panel admin-create-company" onSubmit={createCompany}>
-        <h2>Company workspaces</h2>
-        <p className="text-base">A company has one shared profile and can include many users.</p>
+        <h2>Create company workspace</h2>
+        <p className="text-base">This creates the company and its blank shared profile, then gives the selected user company-manager access. That manager completes the profile from the Company profile menu.</p>
         <div className="admin-create-company__controls">
           <div>
             <label className="usa-label" htmlFor="admin-company-name">Company name</label>
             <input className="usa-input maxw-none" id="admin-company-name" required value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
           </div>
-          <button className="usa-button" type="submit" disabled={creatingCompany}>{creatingCompany ? 'Creating…' : 'Create company'}</button>
+          <div>
+            <label className="usa-label" htmlFor="admin-company-manager">Initial company manager</label>
+            <select className="usa-select maxw-none" id="admin-company-manager" required value={initialManager} onChange={(event) => setInitialManager(event.target.value)}>
+              <option value="">Select an unassigned user</option>
+              {users.filter((item) => !item.company_id && item.enabled).map((item) => <option key={item.username} value={item.username}>{item.email || item.username}</option>)}
+            </select>
+          </div>
+          <button className="usa-button" type="submit" disabled={creatingCompany || !initialManager}>{creatingCompany ? 'Creating…' : 'Create company and profile'}</button>
         </div>
+        {!users.some((item) => !item.company_id && item.enabled) && <p className="usa-hint">Add a user first, or remove a user’s existing company assignment, to designate an initial manager.</p>}
+        {companies.length > 0 && (
+          <div className="admin-company-list">
+            {companies.map((company) => (
+              <article className="admin-company-card" key={company.company_id}>
+                <div><h3>{company.name}</h3><p>{company.member_count} {company.member_count === 1 ? 'member' : 'members'}</p></div>
+                <div><strong>Company {company.managers.length === 1 ? 'manager' : 'managers'}</strong><span>{company.managers.map((manager) => manager.email || manager.username).join(', ') || 'None designated'}</span></div>
+              </article>
+            ))}
+          </div>
+        )}
       </form>
 
       {error && <Alert type="error">{error}</Alert>}
@@ -202,7 +223,7 @@ export default function AdminUsersPage() {
 function AdminUserCard({ user, isCurrent, companies, update, updateAccess, sendReset, remove }: {
   user: AdminUser;
   isCurrent: boolean;
-  companies: Company[];
+  companies: AdminCompany[];
   update: (username: string, role: 'user' | 'admin', enabled: boolean) => Promise<void>;
   updateAccess: (username: string, companyId: string, companyRole: 'manager' | 'member', features: string[]) => Promise<void>;
   sendReset: (user: AdminUser) => Promise<void>;

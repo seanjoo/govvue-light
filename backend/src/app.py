@@ -152,6 +152,27 @@ def _admin_users() -> list[dict[str, Any]]:
     return items
 
 
+def _admin_companies() -> list[dict[str, Any]]:
+    companies = {
+        item["company_id"]: {**item, "member_count": 0, "managers": []}
+        for item in storage.list_companies()
+    }
+    for user in user_admin.list_users():
+        settings = storage.get_user_settings(str(user.get("sub") or ""))
+        company = companies.get(settings["company_id"])
+        if not company:
+            continue
+        company["member_count"] += 1
+        if settings["company_role"] == "manager":
+            company["managers"].append(
+                {
+                    "username": str(user.get("username") or ""),
+                    "email": str(user.get("email") or ""),
+                }
+            )
+    return sorted(companies.values(), key=lambda item: item["name"].casefold())
+
+
 def _require_company_manager(event: dict[str, Any], user_id: str) -> dict[str, Any]:
     access = _access_context(event, user_id)
     if not access["company_id"]:
@@ -463,9 +484,43 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
     if path == "/admin/companies":
         _require_admin(event)
         if method == "GET":
-            return response(200, {"items": storage.list_companies()})
+            return response(200, {"items": _admin_companies()})
         if method == "POST":
-            return response(201, storage.create_company(str(_body(event).get("name") or "")))
+            payload = _body(event)
+            manager_username = str(payload.get("manager_username") or "").strip()
+            if not manager_username:
+                raise ValueError("An initial company manager is required")
+            manager = user_admin.get_user(manager_username)
+            manager_sub = str(manager.get("sub") or "")
+            if not manager_sub:
+                raise ValueError("Initial manager identity is missing")
+            existing_settings = storage.get_user_settings(manager_sub)
+            if existing_settings["company_id"]:
+                raise ValueError("The selected manager is already assigned to a company")
+            company = storage.create_company(str(payload.get("name") or ""))
+            try:
+                storage.put_user_settings(
+                    manager_sub,
+                    company["company_id"],
+                    "manager",
+                    existing_settings["features"],
+                )
+            except Exception:
+                storage.delete_company(company["company_id"])
+                raise
+            return response(
+                201,
+                {
+                    **company,
+                    "member_count": 1,
+                    "managers": [
+                        {
+                            "username": str(manager.get("username") or ""),
+                            "email": str(manager.get("email") or ""),
+                        }
+                    ],
+                },
+            )
 
     if path == "/admin/users":
         _require_admin(event)

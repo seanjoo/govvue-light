@@ -48,6 +48,11 @@ export interface Company {
   updated_at: number;
 }
 
+export interface AdminCompany extends Company {
+  member_count: number;
+  managers: Array<{ username: string; email: string }>;
+}
+
 export interface UserContext {
   sub: string;
   email: string;

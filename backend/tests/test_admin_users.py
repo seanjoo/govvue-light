@@ -52,6 +52,50 @@ class AdminAuthorizationTests(unittest.TestCase):
         self.assertEqual(result["statusCode"], 201)
         create_user.assert_called_once_with("new@example.com", "user")
 
+    def test_company_creation_requires_an_initial_manager(self):
+        result = app.lambda_handler(
+            event("POST", "/admin/companies", "[admin]", {"name": "Acme"}),
+            SimpleNamespace(aws_request_id="test"),
+        )
+        self.assertEqual(result["statusCode"], 400)
+
+    @patch("app.storage.put_user_settings")
+    @patch("app.storage.create_company")
+    @patch("app.storage.get_user_settings")
+    @patch("app.user_admin.get_user")
+    def test_company_creation_assigns_selected_initial_manager(
+        self, get_user, get_settings, create_company, put_settings
+    ):
+        get_user.return_value = {
+            "username": "manager-id",
+            "sub": "manager-sub",
+            "email": "manager@example.com",
+        }
+        get_settings.return_value = {
+            "company_id": "",
+            "company_role": "member",
+            "features": ["natural_language_search"],
+        }
+        create_company.return_value = {
+            "company_id": "company-1",
+            "name": "Acme",
+            "created_at": 1,
+            "updated_at": 1,
+        }
+        result = app.lambda_handler(
+            event(
+                "POST",
+                "/admin/companies",
+                "[admin]",
+                {"name": "Acme", "manager_username": "manager-id"},
+            ),
+            SimpleNamespace(aws_request_id="test"),
+        )
+        self.assertEqual(result["statusCode"], 201)
+        put_settings.assert_called_once_with(
+            "manager-sub", "company-1", "manager", ["natural_language_search"]
+        )
+
     @patch("app.storage.get_company", return_value=None)
     @patch("app.storage.get_user_settings")
     def test_ai_search_is_denied_when_feature_is_disabled(self, get_settings, _company):

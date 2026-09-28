@@ -194,6 +194,27 @@ promote other company managers, and remove a member's company assignment.
 Removing a company member does not delete the Cognito account or personal
 GovVue data. Per-user feature flags remain platform-admin controls.
 
+The application distinguishes two administrative scopes:
+
+1. A **GovVue administrator** belongs to Cognito's `admin` group and can manage
+   every user, company assignment, and feature flag.
+2. A **company manager** is a regular GovVue user with manager access to one
+   company. Company managers maintain that shared profile and membership but
+   cannot grant the GovVue administrator role.
+
+To create a company in the UI:
+
+1. If necessary, use **Admin → Add user** to invite the intended manager.
+2. Under **Create company workspace**, enter the company name and select an
+   unassigned user as the initial company manager.
+3. Select **Create company and profile**. GovVue creates the workspace, an
+   empty shared profile, and the manager assignment together.
+4. The manager signs in and opens **Company profile** to complete capabilities,
+   NAICS, agencies, keywords, and other profile fields.
+5. From the same page, the manager can invite members or designate additional
+   company managers. A GovVue administrator can later change any company role
+   from the user cards in Admin.
+
 For an idempotent scripted company setup after the users already exist, use:
 
 ```bash

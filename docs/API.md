@@ -7,7 +7,7 @@ Except for `/health`, requests require a Cognito ID token in `Authorization: Bea
 | `GET` | `/health` | Unauthenticated service health |
 | `GET` | `/me` | Current identity, platform role, company assignment, and feature flags |
 | `GET` | `/admin/companies` | Admin-only company workspace list |
-| `POST` | `/admin/companies` | Admin-only company workspace creation |
+| `POST` | `/admin/companies` | Admin-only company and blank-profile creation with required `manager_username` |
 | `GET` | `/admin/users` | Admin-only Cognito user list |
 | `POST` | `/admin/users` | Admin-only user invitation using `email` and optional `role` |
 | `PUT` | `/admin/users/{username}` | Admin-only role and enabled-status update |

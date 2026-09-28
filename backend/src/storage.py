@@ -189,12 +189,40 @@ def create_company(name: str) -> dict[str, Any]:
         },
         ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
     )
+    try:
+        table().put_item(
+            Item={
+                "PK": f"COMPANY#{company_id}",
+                "SK": "PROFILE",
+                "entityType": "companyProfile",
+                "profile": {field: "" for field in COMPANY_PROFILE_FIELDS},
+                "updatedAt": now,
+            },
+            ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+        )
+    except Exception:
+        table().delete_item(
+            Key={"PK": "SYSTEM#COMPANIES", "SK": f"COMPANY#{company_id}"}
+        )
+        raise
     return {
         "company_id": company_id,
         "name": clean_name,
         "created_at": now,
         "updated_at": now,
     }
+
+
+def delete_company(company_id: str) -> None:
+    """Remove a just-created empty company when its initial assignment fails."""
+    clean_id = str(company_id or "").strip()
+    if not clean_id:
+        return
+    with table().batch_writer() as batch:
+        batch.delete_item(
+            Key={"PK": "SYSTEM#COMPANIES", "SK": f"COMPANY#{clean_id}"}
+        )
+        batch.delete_item(Key={"PK": f"COMPANY#{clean_id}", "SK": "PROFILE"})
 
 
 COMPANY_PROFILE_FIELDS = {
