@@ -65,8 +65,10 @@ class NotificationEmailTests(unittest.TestCase):
         self.assertIn("Description: Supply precision equipment <quickly>.", text_body)
         self.assertIn("/opportunities/notice%2F1?", text_body)
         self.assertIn("return_to=%2Fnotifications%2Fnotification-1%2Fruns%2F2026-09-26", text_body)
-        self.assertIn("View details in GovVue Light", html_body)
+        self.assertIn("View in GovVue Light", html_body)
         self.assertIn("Tools &lt;and&gt; machinery", html_body)
+        self.assertIn("<strong>Tools &lt;and&gt; machinery</strong>", html_body)
+        self.assertNotIn(">Tools &lt;and&gt; machinery</a>", html_body)
         self.assertIn("Supply precision equipment &lt;quickly&gt;.", html_body)
         self.assertNotIn("Tools <and> machinery", html_body)
 

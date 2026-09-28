@@ -140,12 +140,12 @@ def _email_bodies(
         )
         html_items.append(
             '<li style="margin-bottom: 1.25rem;">'
-            f'<strong><a href="{html.escape(detail_url)}">{html.escape(title)}</a></strong><br>'
+            f"<strong>{html.escape(title)}</strong><br>"
             f"<strong>Type:</strong> {html.escape(opportunity_type)}<br>"
             f"<strong>Response due:</strong> {html.escape(due_date)}<br>"
             f"<strong>Notice ID:</strong> {html.escape(notice_id)}"
             f'<p style="margin: .5rem 0;">{html.escape(description)}</p>'
-            f'<a href="{html.escape(detail_url)}">View details in GovVue Light</a>'
+            f'<a href="{html.escape(detail_url)}">View in GovVue Light</a>'
             "</li>"
         )
     text_lines.append(f"View all matching opportunities: {notification_url}")
