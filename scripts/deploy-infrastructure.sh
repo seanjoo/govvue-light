@@ -58,6 +58,21 @@ if [[ "$BOOTSTRAP_ONLY" == true ]]; then
   exit 0
 fi
 
+ADMIN_CERT_ARN="$(config_get "$CONFIG_FILE" admin_acm_certificate_arn)"
+ADMIN_DOMAIN="$(config_get "$CONFIG_FILE" admin_domain_name)"
+ADMIN_CERT_STATUS="$(aws acm describe-certificate \
+  --certificate-arn "$ADMIN_CERT_ARN" \
+  --query 'Certificate.Status' --output text \
+  --profile "$PROFILE" --region us-east-1)"
+ADMIN_CERT_COVERS_DOMAIN="$(aws acm describe-certificate \
+  --certificate-arn "$ADMIN_CERT_ARN" \
+  --query "Certificate.SubjectAlternativeNames[?@=='$ADMIN_DOMAIN'] | [0]" --output text \
+  --profile "$PROFILE" --region us-east-1)"
+if [[ "$ADMIN_CERT_STATUS" != "ISSUED" || "$ADMIN_CERT_COVERS_DOMAIN" != "$ADMIN_DOMAIN" ]]; then
+  echo "Admin certificate must be ISSUED and cover $ADMIN_DOMAIN before deployment." >&2
+  exit 1
+fi
+
 if [[ "$REUSE_LAMBDA" == true ]]; then
   LAMBDA_KEY="$(stack_parameter "$APP_STACK" LambdaArtifactKey "$PROFILE" "$REGION")"
   LAMBDA_VERSION="$(stack_parameter "$APP_STACK" LambdaArtifactVersion "$PROFILE" "$REGION")"
@@ -85,6 +100,8 @@ fi
 echo "Deploying application stack $APP_STACK..."
 aws cloudformation deploy \
   --template-file "$PROJECT_ROOT/infrastructure/app.yaml" \
+  --s3-bucket "$ARTIFACT_BUCKET" \
+  --s3-prefix "releases/$BUILD_ID/cloudformation-upload" \
   --stack-name "$APP_STACK" \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
@@ -95,13 +112,21 @@ aws cloudformation deploy \
     LambdaArtifactVersion="$LAMBDA_VERSION" \
     BuildId="$BUILD_ID" \
     AppDomainName="$SSM_PREFIX/AppDomainName" \
+    AdminDomainName="$SSM_PREFIX/AdminDomainName" \
     HostedZoneId="$SSM_PREFIX/HostedZoneId" \
     AcmCertificateArn="$SSM_PREFIX/AcmCertificateArn" \
+    AdminAcmCertificateArn="$SSM_PREFIX/AdminAcmCertificateArn" \
     CognitoDomainName="$SSM_PREFIX/CognitoDomainName" \
     CognitoCertificateArn="$SSM_PREFIX/CognitoCertificateArn" \
     DailyFeedScheduleExpression="$SSM_PREFIX/DailyFeedScheduleExpression" \
     DailyFeedScheduleTimezone="$SSM_PREFIX/DailyFeedTimezone" \
+    OpportunityDailyScheduleExpression="$SSM_PREFIX/OpportunityDailyScheduleExpression" \
+    OpportunityPollScheduleExpression="$SSM_PREFIX/OpportunityPollScheduleExpression" \
+    EntityMonthlyScheduleExpression="$SSM_PREFIX/EntityMonthlyScheduleExpression" \
+    EntityDailyScheduleExpression="$SSM_PREFIX/EntityDailyScheduleExpression" \
+    IngestScheduleState="$SSM_PREFIX/IngestScheduleState" \
     NotificationFromEmail="$SSM_PREFIX/NotificationFromEmail" \
+    OpsAlertEmail="$SSM_PREFIX/OpsAlertEmail" \
     SesIdentityDomain="$SSM_PREFIX/SesIdentityDomain" \
   --no-fail-on-empty-changeset \
   --profile "$PROFILE" --region "$REGION"

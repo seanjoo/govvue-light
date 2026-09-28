@@ -35,6 +35,9 @@ const EMPTY_FILTERS: Record<string, string> = {
   set_aside: '',
   state: '',
   organization_name: '',
+  exclude_organization_name: '',
+  include_terms_any: '',
+  exclude_terms: '',
   posted_within: '',
   posted_from: iso(prior),
   posted_to: iso(today),
@@ -183,7 +186,7 @@ export default function SearchPage() {
       setInterpretation(plan);
       setResult(null);
       setLastSearchCriteria(null);
-      setMessage('Search filters are ready. Review or edit them, then search SAM.gov.');
+      setMessage('Search filters are ready. Review or edit them, then search.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to build the search');
     } finally {
@@ -205,7 +208,7 @@ export default function SearchPage() {
           </div>
           <form onSubmit={buildAiSearch}>
             <label className="usa-label" htmlFor="ai-search-query">Opportunity description</label>
-            <span className="usa-hint">Use plain language. The builder creates existing SAM.gov filters for you; it does not rank or process results with AI.</span>
+            <span className="usa-hint">Use plain language. The builder creates editable local-search filters; it does not rank or process results with AI.</span>
             <textarea className="usa-textarea maxw-none" id="ai-search-query" rows={4} required minLength={5} maxLength={2000} value={aiQuery} onChange={(event) => setAiQuery(event.target.value)} placeholder="Example: Find custom web application development and O&M support opportunities in the defense sector that fit our company." />
             <div className="ai-search-builder__actions">
               <div>
@@ -246,7 +249,7 @@ export default function SearchPage() {
           <div className="tablet:grid-col-3">
             <div className="field-label">
               <label className="usa-label" htmlFor="sort">Sort results</label>
-              <InfoTip text="SAM.gov does not sort upstream. Non-default orders load the complete matching page set before sorting." label="About result sorting" />
+              <InfoTip text="Local results are sorted across all matches. A live SAM.gov fallback may require extra requests and has its own limits." label="About result sorting" />
             </div>
             <select className="usa-select maxw-none" id="sort" value={filters.sort} onChange={(event) => update('sort', event.target.value)}>
               {SORT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -259,6 +262,9 @@ export default function SearchPage() {
             <Filter label="Solicitation number" name="solicitation_number" value={filters.solicitation_number} update={update} />
             <Filter label="PSC / classification code" name="classification_code" value={filters.classification_code} update={update} hint="Separate multiple codes with commas." />
             <Filter label="Organization" name="organization_name" value={filters.organization_name} update={update} hint="Use one organization, or separate multiple exact organization names with |." />
+            <Filter label="Exclude organizations" name="exclude_organization_name" value={filters.exclude_organization_name} update={update} hint="Separate multiple agencies or organizations with |. Useful for excluding DoD from civilian searches." />
+            <Filter label="Any of these keywords" name="include_terms_any" value={filters.include_terms_any} update={update} hint="Match any of these terms in title, description, or agency." />
+            <Filter label="Exclude keywords" name="exclude_terms" value={filters.exclude_terms} update={update} hint="Exclude results containing these terms." />
             <PostedDateFilter
               mode={postedDateMode}
               postedFrom={filters.posted_from}
@@ -287,9 +293,9 @@ export default function SearchPage() {
             <MultiSelectFilter id="state" label="Place-of-performance state" value={filters.state} options={STATE_OPTIONS} update={(value) => update('state', value)} />
             <NaicsPicker id="search" value={filters.naics_code} update={(value) => update('naics_code', value)} />
           </div>
-          <p className="usa-hint margin-top-2">Multiple values within one filter use OR. Different filters are combined with AND. A search is limited to 12 SAM.gov request combinations.</p>
+          <p className="usa-hint margin-top-2">Multiple values within one filter use OR. Different inclusion filters are combined with AND. Local search has no SAM.gov request-combination limit.</p>
         </details>
-        <button className="usa-button margin-top-3" type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search SAM.gov'}</button>
+        <button className="usa-button margin-top-3" type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search opportunities'}</button>
       </form>
 
       {error && <Alert type="error">{error}</Alert>}
@@ -299,7 +305,7 @@ export default function SearchPage() {
           <div className="results-summary">
             <h2>{result.total_records.toLocaleString()} active opportunities</h2>
             <div className="results-summary__actions">
-              <span>{result.cache_hit ? 'Cached SAM.gov response' : 'Fresh SAM.gov response'}{result.upstream_queries > 1 ? ` · merged ${result.upstream_queries} searches` : ''}</span>
+              <span>{result.source === 'local' ? `Local index · SAM data as of ${result.source_date || 'unknown'}` : result.cache_hit ? 'Cached SAM.gov response' : 'Fresh SAM.gov response'}{result.upstream_queries > 1 ? ` · merged ${result.upstream_queries} searches` : ''}</span>
               <button className="usa-button usa-button--outline" type="button" onClick={createDailyNotification}>Create daily notification</button>
             </div>
           </div>
@@ -310,7 +316,12 @@ export default function SearchPage() {
               onSave={saveOpportunity}
               navigation={resultNavigation(result, index, page, lastSearchCriteria || criteriaFromFilters(filters), `${location.pathname}${location.search}`)}
             />
-          )) : <p>No active opportunities matched these filters.</p>}
+          )) : <div>
+            <p>No active opportunities matched these filters.</p>
+            {lastSearchCriteria?.notice_id && !lastSearchCriteria.notice_id.includes(',') && (
+              <p>Looking for an older notice? <a href={`https://sam.gov/opp/${encodeURIComponent(lastSearchCriteria.notice_id.trim())}/view`} target="_blank" rel="noreferrer">Try opening it on SAM.gov ↗</a></p>
+            )}
+          </div>}
           <Pagination page={page} hasNext={result.has_next} onChange={(value) => runSearch(value, false)} />
         </section>
       )}

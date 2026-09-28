@@ -13,6 +13,7 @@ import {
 } from 'aws-amplify/auth';
 import { Hub } from 'aws-amplify/utils';
 import { runtimeConfig } from '../runtimeConfig';
+import { peerLogout, peerSession } from './bridge';
 
 const OAUTH_ERROR_STORAGE_KEY = 'govvue.oauth.error';
 
@@ -92,10 +93,10 @@ export async function loginWithGoogle(returnTo: string): Promise<void> {
 
 export async function logout(): Promise<void> {
   window.sessionStorage.removeItem('govvue.oauth.returnTo');
-  await signOut();
+  await Promise.allSettled([signOut(), peerLogout()]);
 }
 
-export async function currentUser(): Promise<{ username: string; email: string; role: 'admin' | 'user'; groups: string[] } | null> {
+export async function localCurrentUser(): Promise<{ username: string; email: string; role: 'admin' | 'user'; groups: string[] } | null> {
   try {
     const session = await fetchAuthSession();
     const payload = session.tokens?.idToken?.payload;
@@ -116,6 +117,12 @@ export async function currentUser(): Promise<{ username: string; email: string; 
   } catch {
     return null;
   }
+}
+
+export async function currentUser(): ReturnType<typeof localCurrentUser> {
+  const local = await localCurrentUser();
+  if (local) return local;
+  return (await peerSession())?.user ?? null;
 }
 
 export function consumeOAuthError(): string {
@@ -140,11 +147,21 @@ export async function finishPasswordReset(
   await confirmResetPassword({ username, confirmationCode, newPassword });
 }
 
-export async function idToken(): Promise<string | null> {
+export async function localIdToken(): Promise<string | null> {
   try {
     const session = await fetchAuthSession();
     return session.tokens?.idToken?.toString() ?? null;
   } catch {
     return null;
   }
+}
+
+export async function idToken(): Promise<string | null> {
+  const local = await localIdToken();
+  if (local) return local;
+  return (await peerSession())?.token ?? null;
+}
+
+export async function localLogout(): Promise<void> {
+  await signOut();
 }

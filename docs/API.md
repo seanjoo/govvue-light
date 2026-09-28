@@ -11,6 +11,10 @@ Except for `/health`, requests require a Cognito ID token in `Authorization: Bea
 | `GET` | `/admin/companies/{companyId}/profile` | Admin-only access to any company profile |
 | `PUT` | `/admin/companies/{companyId}/profile` | Admin-only update of any company profile |
 | `GET` | `/admin/users` | Admin-only Cognito user list |
+| `GET` | `/admin/ingestion` | Admin-only index freshness, schedules, queues, and recent builds |
+| `POST` | `/admin/ingestion/run` | Admin-only manual job dispatch using `dataset` |
+| `POST` | `/admin/ingestion/validate` | Admin-only read-only local search smoke test using `kind: opportunities` or `entities`; works before public cutover |
+| `GET` | `/admin/costs` | Admin-only workshop account Cost Explorer summary |
 | `POST` | `/admin/users` | Admin-only user invitation using `email` and optional `role` |
 | `PUT` | `/admin/users/{username}` | Admin-only role and enabled-status update |
 | `DELETE` | `/admin/users/{username}` | Admin-only account and GovVue user-data deletion |
@@ -90,6 +94,16 @@ converged results by Notice ID. `search_max_fanout` limits that cross-product.
 `organization_name` also supports OR matching, using `|` between exact
 organization names so commas that are part of an official organization name
 remain unambiguous. These values participate in the same bounded fan-out.
+
+After local-search cutover, the same parameters are evaluated against the
+complete active SQLite index with OR inside a field and AND between fields.
+`exclude_organization_name`, `include_terms_any`, and `exclude_terms` are
+local-only criteria used by the AI builder and manual filters. The response
+includes `source` (`local` or `sam`) and, for a local result, `source_date` and
+`index_version`. The 12-request fan-out and 24-page sort limits apply only to
+the direct SAM fallback. If local-only criteria cannot be served because the
+index is unavailable, the API reports that explicitly instead of silently
+dropping the criteria.
 
 The browser's NAICS picker is generated from the official 2022 Census NAICS
 hierarchy and emits comma-separated six-digit `naics_code` values. Parent

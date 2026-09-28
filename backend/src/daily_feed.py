@@ -16,6 +16,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 import storage
+import local_index
 from runtime_config import get_runtime_config
 from sam_client import build_search_parameters, search_opportunities
 
@@ -50,6 +51,7 @@ def _ensure_run(
     retention_days: int,
     run_id: str,
     trigger: str,
+    pinned_index: dict[str, Any] | None = None,
 ) -> None:
     now = int(time.time())
     try:
@@ -64,6 +66,8 @@ def _ensure_run(
                 "status": "FETCHING",
                 "runId": run_id,
                 "trigger": trigger,
+                "indexKey": str((pinned_index or {}).get("key") or ""),
+                "indexSha256": str((pinned_index or {}).get("sha256") or ""),
                 "createdAt": now,
                 "expiresAt": now + retention_days * 86400,
             },
@@ -114,6 +118,12 @@ def _start(message: dict[str, Any]) -> None:
         and item.get("notification_id")
     ] if isinstance(raw_targets, list) else None
     run_id = str(message.get("request_id") or f"{run_date}-{time.time_ns()}")
+    pinned_index = None
+    if os.environ.get("LOCAL_SEARCH_ENABLED") == "true":
+        try:
+            _, pinned_index = local_index.current_index()
+        except local_index.LocalIndexUnavailable as exc:
+            LOGGER.warning("Local index unavailable for daily feed; using SAM.gov: %s", exc)
     existing = _meta(run_date)
     if existing and existing.get("status") == "FETCHING":
         return
@@ -128,6 +138,7 @@ def _start(message: dict[str, Any]) -> None:
             UpdateExpression=(
                 "SET #status = :fetching, postedFrom = :posted_from, "
                 "postedTo = :posted_to, runId = :run_id, #trigger = :trigger, "
+                "indexKey = :index_key, indexSha256 = :index_sha, "
                 "updatedAt = :now REMOVE completedAt, lastPageCompleted, totalRecords, totalPages"
             ),
             ExpressionAttributeNames={"#status": "status", "#trigger": "trigger"},
@@ -138,6 +149,8 @@ def _start(message: dict[str, Any]) -> None:
                 ":run_id": run_id,
                 ":trigger": trigger,
                 ":now": int(time.time()),
+                ":index_key": str((pinned_index or {}).get("key") or ""),
+                ":index_sha": str((pinned_index or {}).get("sha256") or ""),
             },
         )
     else:
@@ -147,6 +160,7 @@ def _start(message: dict[str, Any]) -> None:
             config.daily_feed_retention_days,
             run_id,
             trigger,
+            pinned_index,
         )
     _send_page(run_date, 0, run_id, trigger, targets)
 
@@ -190,6 +204,15 @@ def _tick(message: dict[str, Any]) -> None:
     now = datetime.now(timezone)
     run_date = now.date().isoformat()
     current_minutes = now.hour * 60 + now.minute
+    if os.environ.get("LOCAL_SEARCH_ENABLED") == "true":
+        try:
+            manifest = local_index.current_manifest()
+        except local_index.LocalIndexUnavailable as exc:
+            LOGGER.warning("Waiting for the daily opportunity index: %s", exc)
+            return
+        if str(manifest["source_date"]) < run_date:
+            LOGGER.info("Waiting for the %s opportunity snapshot before scheduled notifications", run_date)
+            return
     targets: list[dict[str, str]] = []
     for item in storage.list_enabled_daily_notifications():
         if str(item.get("lastScheduledRunDate") or "") == run_date:
@@ -207,7 +230,9 @@ def _tick(message: dict[str, Any]) -> None:
             )
             continue
         scheduled_minutes = hour * 60 + minute
-        if 0 <= current_minutes - scheduled_minutes < 15:
+        # Keep due notifications pending until the daily index is published.
+        # The lastScheduledRunDate check above prevents repeat sends.
+        if current_minutes >= scheduled_minutes:
             targets.append(
                 {
                     "user_id": str(item["userId"]),
@@ -241,11 +266,18 @@ def _page(message: dict[str, Any]) -> None:
         LOGGER.info("Ignoring stale daily feed page for %s", run_date)
         return
 
-    params = build_search_parameters(
-        {"posted_from": str(meta["postedFrom"]), "posted_to": str(meta["postedTo"])},
-        config,
-    )
-    result = search_opportunities(params, page_index, config, config.daily_feed_page_size)
+    if meta.get("indexKey"):
+        result = local_index.feed_page(
+            str(meta["indexKey"]), str(meta["indexSha256"]),
+            str(meta["postedFrom"]), str(meta["postedTo"]),
+            page_index, config.daily_feed_page_size,
+        )
+    else:
+        params = build_search_parameters(
+            {"posted_from": str(meta["postedFrom"]), "posted_to": str(meta["postedTo"])},
+            config,
+        )
+        result = search_opportunities(params, page_index, config, config.daily_feed_page_size)
     records = result["records"]
     total_records = int(result["total_records"])
     total_pages = max(1, math.ceil(total_records / config.daily_feed_page_size))

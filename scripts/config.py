@@ -19,8 +19,10 @@ REQUIRED = (
     "aws_profile",
     "aws_region",
     "app_domain_name",
+    "admin_domain_name",
     "hosted_zone_id",
     "acm_certificate_arn",
+    "admin_acm_certificate_arn",
     "cognito_domain_name",
     "cognito_certificate_arn",
     "google_oauth_client_id",
@@ -30,8 +32,15 @@ REQUIRED = (
     "sam_entities_api",
     "sam_site_base_url",
     "notification_from_email",
+    "ops_alert_email",
     "ses_identity_domain",
     "daily_feed_schedule_expression",
+    "opportunity_daily_schedule_expression",
+    "opportunity_poll_schedule_expression",
+    "entity_monthly_schedule_expression",
+    "entity_daily_schedule_expression",
+    "ingest_schedule_state",
+    "local_search_enabled",
     "daily_feed_timezone",
     "daily_notification_default_time",
     "ai_search_model_id",
@@ -63,11 +72,16 @@ def validate(data: dict[str, Any]) -> list[str]:
 
     if not str(data.get("app_domain_name", "")).endswith(".govvue.com"):
         errors.append("app_domain_name must be a govvue.com hostname")
+    if not str(data.get("admin_domain_name", "")).endswith(".govvue.com"):
+        errors.append("admin_domain_name must be a govvue.com hostname")
     if str(data.get("aws_profile", "")) != "workshop":
         errors.append("aws_profile must be workshop for GovVue Light")
     certificate_arn = str(data.get("acm_certificate_arn", ""))
     if not certificate_arn.startswith("arn:aws:acm:us-east-1:"):
         errors.append("acm_certificate_arn must be an ACM certificate in us-east-1")
+    admin_certificate_arn = str(data.get("admin_acm_certificate_arn", ""))
+    if not admin_certificate_arn.startswith("arn:aws:acm:us-east-1:"):
+        errors.append("admin_acm_certificate_arn must be an ACM certificate in us-east-1")
     cognito_domain = str(data.get("cognito_domain_name", ""))
     if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?", cognito_domain) or not cognito_domain.endswith(".govvue.com"):
         errors.append("cognito_domain_name must be a lowercase govvue.com hostname")
@@ -134,8 +148,22 @@ def validate(data: dict[str, Any]) -> list[str]:
     identity = str(data.get("ses_identity_domain", ""))
     if "@" not in sender or not sender.lower().endswith(f"@{identity.lower()}"):
         errors.append("notification_from_email must belong to ses_identity_domain")
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", str(data.get("ops_alert_email", ""))):
+        errors.append("ops_alert_email must be an email address")
     if not str(data.get("daily_feed_schedule_expression", "")).startswith(("cron(", "rate(")):
         errors.append("daily_feed_schedule_expression must be an EventBridge cron() or rate() expression")
+    for key in (
+        "opportunity_daily_schedule_expression",
+        "opportunity_poll_schedule_expression",
+        "entity_monthly_schedule_expression",
+        "entity_daily_schedule_expression",
+    ):
+        if not str(data.get(key, "")).startswith(("cron(", "rate(")):
+            errors.append(f"{key} must be an EventBridge cron() or rate() expression")
+    if str(data.get("ingest_schedule_state")) not in {"ENABLED", "DISABLED"}:
+        errors.append("ingest_schedule_state must be ENABLED or DISABLED")
+    if not isinstance(data.get("local_search_enabled"), bool):
+        errors.append("local_search_enabled must be true or false")
     default_time = str(data.get("daily_notification_default_time", ""))
     if not re.fullmatch(r"(?:[01]\d|2[0-3]):(?:[0-5]\d)", default_time):
         errors.append("daily_notification_default_time must use HH:MM in 24-hour time")

@@ -1,0 +1,10 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - python3 -m pip install --disable-pip-version-check boto3
+  build:
+    commands:
+      - python3 -m ingest_runner

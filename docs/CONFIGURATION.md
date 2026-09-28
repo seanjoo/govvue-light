@@ -45,8 +45,10 @@ The default prefix is `/govvue-light/dev/`.
 | `sam_entities_api` | `SamEntitiesApi` | `String` | Lambda runtime |
 | `sam_site_base_url` | `SamSiteBaseUrl` | `String` | Lambda runtime |
 | `app_domain_name` | `AppDomainName` | `String` | CloudFormation/CloudFront and Route 53 |
+| `admin_domain_name` | `AdminDomainName` | `String` | Admin CloudFront, Route 53, Cognito callback, API CORS |
 | `hosted_zone_id` | `HostedZoneId` | `String` | CloudFormation/Route 53 |
 | `acm_certificate_arn` | `AcmCertificateArn` | `String` | CloudFormation/CloudFront |
+| `admin_acm_certificate_arn` | `AdminAcmCertificateArn` | `String` | Admin CloudFront distribution |
 | `cognito_domain_name` | `CognitoDomainName` | `String` | CloudFormation/Cognito custom domain |
 | `cognito_certificate_arn` | `CognitoCertificateArn` | `String` | CloudFormation/Cognito custom-domain certificate |
 | `google_oauth_client_id` | `GoogleOAuthClientId` | `String` | CloudFormation/Cognito Google provider |
@@ -71,7 +73,14 @@ The default prefix is `/govvue-light/dev/`.
 | `ai_search_model_id` | `AiSearchModelId` | `String` | API Lambda/Amazon Bedrock |
 | `ai_search_max_tokens` | `AiSearchMaxTokens` | `String` | API Lambda/Amazon Bedrock |
 | `daily_notification_default_time` | `DailyNotificationDefaultTime` | `String` | API and daily-feed Lambda runtime |
+| `ops_alert_email` | `OpsAlertEmail` | `String` | Daily ingestion health alert recipient |
 | `daily_feed_schedule_expression` | `DailyFeedScheduleExpression` | `String` | CloudFormation/EventBridge Scheduler |
+| `opportunity_daily_schedule_expression` | `OpportunityDailyScheduleExpression` | `String` | Opportunity full snapshot schedule |
+| `opportunity_poll_schedule_expression` | `OpportunityPollScheduleExpression` | `String` | Recent-posted API polling schedule |
+| `entity_monthly_schedule_expression` | `EntityMonthlyScheduleExpression` | `String` | Monthly entity ZIP schedule |
+| `entity_daily_schedule_expression` | `EntityDailyScheduleExpression` | `String` | Daily entity JSON export schedule |
+| `ingest_schedule_state` | `IngestScheduleState` | `String` | All four ingestion schedules; initially `DISABLED` |
+| `local_search_enabled` | `LocalSearchEnabled` | `String` | API and daily-feed cutover; initially `false` |
 | `daily_feed_timezone` | `DailyFeedTimezone` | `String` | CloudFormation/EventBridge Scheduler |
 | `notification_from_email` | `NotificationFromEmail` | `String` | CloudFormation/notification Lambda |
 | `ses_identity_domain` | `SesIdentityDomain` | `String` | CloudFormation/Amazon SES |
@@ -81,8 +90,9 @@ The default prefix is `/govvue-light/dev/`.
 The initial AI search model is `amazon.nova-lite-v1:0`. The API Lambda is
 permitted to invoke Bedrock foundation models, but no model call occurs unless
 the authenticated user has the `natural_language_search` feature flag and
-submits the AI builder form. The model produces filter criteria only; SAM.gov
-still supplies all opportunity results.
+submits the AI builder form. The model produces filter criteria only; the
+published local index supplies results after cutover, with direct SAM.gov as
+the fallback before cutover or when the index is unavailable.
 
 ## Synchronization
 
@@ -129,6 +139,12 @@ organization code, and organization name are multiplied together. Organization
 names use `|` as their separator; the other multi-value fields use commas. For example, three states and
 two NAICS codes require six SAM.gov searches. Cached upstream pages are reused
 across display pages and equivalent searches.
+
+These are **live SAM fallback controls only**. Once
+`local_search_enabled: true`, local searches do not make a SAM request per
+filter combination and do not truncate NAICS, set-aside, or agency selections
+to satisfy a SAM request cap. The old parameters remain in YAML so the
+fallback path can operate safely.
 
 `search_max_sort_pages` bounds the total number of upstream SAM.gov pages that
 GovVue will load to produce an exact order other than posted date, newest first.

@@ -12,6 +12,8 @@ USER_POOL_ID=""
 USER_POOL_CLIENT_ID=""
 COGNITO_DOMAIN=""
 APP_TITLE="GovVue Light"
+APP_BASE_URL=""
+ADMIN_BASE_URL=""
 DAILY_NOTIFICATION_DEFAULT_TIME="06:15"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -22,13 +24,15 @@ while [[ $# -gt 0 ]]; do
     --user-pool-client-id) USER_POOL_CLIENT_ID="$2"; shift 2 ;;
     --cognito-domain) COGNITO_DOMAIN="$2"; shift 2 ;;
     --app-title) APP_TITLE="$2"; shift 2 ;;
+    --app-base-url) APP_BASE_URL="$2"; shift 2 ;;
+    --admin-base-url) ADMIN_BASE_URL="$2"; shift 2 ;;
     --daily-notification-default-time) DAILY_NOTIFICATION_DEFAULT_TIME="$2"; shift 2 ;;
     -h|--help) echo "Usage: $0 --api-base-url URL --aws-region REGION --user-pool-id ID --user-pool-client-id ID --cognito-domain URL [--app-title TITLE] [--daily-notification-default-time HH:MM] [--build-id ID]"; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
 
-for required in API_BASE_URL AWS_REGION USER_POOL_ID USER_POOL_CLIENT_ID COGNITO_DOMAIN; do
+for required in API_BASE_URL AWS_REGION USER_POOL_ID USER_POOL_CLIENT_ID COGNITO_DOMAIN APP_BASE_URL ADMIN_BASE_URL; do
   if [[ -z "${!required}" ]]; then echo "$required is required" >&2; exit 1; fi
 done
 
@@ -47,6 +51,8 @@ python3 "$PROJECT_ROOT/scripts/render-runtime-config.py" \
   --user-pool-client-id "$USER_POOL_CLIENT_ID" \
   --cognito-domain "$COGNITO_DOMAIN" \
   --app-title "$APP_TITLE" \
+  --app-base-url "$APP_BASE_URL" \
+  --admin-base-url "$ADMIN_BASE_URL" \
   --daily-notification-default-time "$DAILY_NOTIFICATION_DEFAULT_TIME" \
   --build-id "$BUILD_ID"
 

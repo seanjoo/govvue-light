@@ -67,12 +67,10 @@ export default function NaicsPicker({
   id,
   value,
   update,
-  maxSelections = 12,
 }: {
   id: string;
   value: string;
   update: (value: string) => void;
-  maxSelections?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -119,7 +117,7 @@ export default function NaicsPicker({
   function toggleDraft(code: string) {
     const next = new Set(draftSelectedSet);
     if (next.has(code)) next.delete(code);
-    else if (next.size < maxSelections) next.add(code);
+    else next.add(code);
     setDraftSelected([...next].sort());
   }
 
@@ -132,7 +130,7 @@ export default function NaicsPicker({
     update(selected.filter((item) => item !== code).join(','));
   }
 
-  const atLimit = draftSelected.length >= maxSelections;
+  const atLimit = false;
   return (
     <div className="tablet:grid-col-8 naics-picker">
       <div className="naics-picker__heading">
@@ -196,7 +194,6 @@ export default function NaicsPicker({
                 aria-describedby={`${id}-search-hint`}
                 onChange={(event) => setQuery(event.target.value)}
               />
-              {atLimit && <p className="usa-error-message">Selection limit reached ({maxSelections}). Remove a code to choose another.</p>}
               {!data ? (
                 <p>Loading the NAICS catalog…</p>
               ) : normalizedQuery ? (
@@ -215,7 +212,7 @@ export default function NaicsPicker({
               )}
             </div>
             <footer className="naics-dialog__footer">
-              <span>{draftSelected.length} of {maxSelections} selected</span>
+              <span>{draftSelected.length} selected</span>
               <div>
                 {draftSelected.length > 0 && <button className="usa-button usa-button--unstyled" type="button" onClick={() => setDraftSelected([])}>Clear all</button>}
                 <button className="usa-button usa-button--outline" type="button" onClick={closePicker}>Cancel</button>

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
 import Layout from './components/Layout';
@@ -21,6 +22,10 @@ import AboutPage from './pages/AboutPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import CompanyProfilePage from './pages/CompanyProfilePage';
+import { runtimeConfig } from './runtimeConfig';
+import AuthBridgePage from './auth/AuthBridgePage';
+
+const AdminApp = lazy(() => import('./admin/AdminApp'));
 
 function Protected() {
   const { user, loading } = useAuth();
@@ -36,8 +41,12 @@ function HomeEntry() {
 }
 
 export default function App() {
+  if (window.location.origin === runtimeConfig.adminBaseUrl) {
+    return <Suspense fallback={<main className="grid-container padding-y-6">Loading administration…</main>}><AdminApp /></Suspense>;
+  }
   return (
     <Routes>
+      <Route path="/auth-bridge" element={<AuthBridgePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route element={<PublicLayout />}>
         <Route index element={<HomeEntry />} />
@@ -60,11 +69,16 @@ export default function App() {
           <Route path="/notifications/:notificationId/runs/:runDate" element={<DailyNotificationRunPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/company-profile" element={<CompanyProfilePage />} />
-          <Route path="/admin/companies/:companyId/profile" element={<CompanyProfilePage />} />
-          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/companies/:companyId/profile" element={<AdminRedirect />} />
+          <Route path="/admin/users" element={<AdminRedirect />} />
           <Route path="*" element={<Navigate to="/search" replace />} />
         </Route>
       </Route>
     </Routes>
   );
+}
+
+function AdminRedirect() {
+  window.location.replace(`${runtimeConfig.adminBaseUrl}${window.location.pathname}${window.location.search}`);
+  return <main className="grid-container padding-y-6">Opening administration…</main>;
 }

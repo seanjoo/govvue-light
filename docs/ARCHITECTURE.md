@@ -1,5 +1,39 @@
 # Architecture
 
+## Local-data release
+
+The app and the Tabler administration console are separate CloudFront aliases
+and distributions, `app.govvue.com` and `admin.govvue.com`, serving one
+environment-aware frontend build from a private S3 origin. The admin hostname
+loads Tabler styles; the research app retains USWDS. Both use the same Cognito
+pool/client and managed-login domain, but store their browser sessions on their
+own origins. A same-site iframe at `/auth-bridge` may provide a fresh ID token
+to the other GovVue hostname through origin-checked `postMessage`; tokens are
+never put in URLs or domain-wide cookies. Direct login on either hostname is
+still supported. CloudFront's `frame-ancestors` policy permits only these two
+origins to frame the app. Admin APIs check the Cognito `admin` group.
+
+An on-demand CodeBuild worker (no VPC or NAT) downloads SAM's public active
+opportunity CSV daily and public entity ZIP monthly, builds immutable
+SQLite/FTS indexes, validates them, and atomically switches S3 manifests.
+Short Lambda/SQS tasks initiate and poll the asynchronous daily public entity
+JSON export. Four configurable intraday opportunity API polls overlay recently
+posted notices. An SQS DLQ and CodeBuild logs surface failures. EventBridge
+Scheduler controls all jobs, initially disabled until the first baselines pass
+checks. The API Lambda caches the versioned indexes in `/tmp` and reads them
+locally once `local_search_enabled` is on; unsupported entity filters and
+unavailable indexes use the existing live SAM search. Per-user state remains
+in DynamoDB.
+
+The shared daily-notification feed uses a pinned index version after cutover,
+maintaining its existing per-user filters, run history, and SES flow. If local
+search is off or the index cannot be loaded when a run starts, that entire
+run uses the original SAM pagination path. See
+[Local-data plan](LOCAL_DATA_SEARCH_PLAN.md) for known freshness boundaries.
+
+The remainder of this document describes the original live-SAM fallback and
+user-state model; it is retained during the migration.
+
 ## Request path
 
 ```text
@@ -124,7 +158,7 @@ remain scoped to the authenticated user's partition key.
 - Google sign-in is limited to verified Google email addresses that match an existing invited Cognito user. The pre-sign-up trigger links the provider to that user so the original Cognito `sub`, role groups, and DynamoDB data remain unchanged.
 - Lambda independently requires the `admin` group for every `/admin/*` operation; hiding the Admin menu is not the authorization boundary.
 - Company profile edits and membership operations require either the platform `admin` group or the shared company's `manager` role. Company managers can invite regular users or remove their company assignment, but cannot grant a platform-admin role or delete an account.
-- The natural-language builder requires a server-side per-user `natural_language_search` flag. Bedrock receives the user's request and, when selected, the shared company profile; it returns only an allowlisted filter plan that passes the same date and fan-out validation as a manual search. The user reviews or edits those filters before SAM.gov is queried.
+- The natural-language builder requires a server-side per-user `natural_language_search` flag. Bedrock receives the user's request and, when selected, the shared company profile; it returns only an allowlisted filter plan that passes input validation. The user reviews or edits those filters before the local index is queried. The old SAM fan-out limit applies only while live-search fallback is in use.
 - Website and cache buckets block all public access.
 - CloudFront alone can read the website bucket through signed origin access control.
 - Search descriptions are converted to plain text; frontend code never renders SAM.gov HTML.

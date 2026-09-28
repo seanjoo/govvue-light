@@ -18,6 +18,9 @@ import boto3
 
 import storage
 import user_admin
+import local_index
+import local_entity_index
+import admin_operations
 from search_interpreter import SearchInterpreterError, interpret_search
 from sam_entity_client import (
     build_entity_search_parameters,
@@ -368,6 +371,33 @@ def _search(event: dict[str, Any], user_id: str) -> dict[str, Any]:
     sort_order = query.pop("sort", "response_deadline_desc").strip().lower()
     if sort_order not in OPPORTUNITY_SORTS:
         raise ValueError("Unsupported opportunity sort order")
+    if os.environ.get("LOCAL_INDEX_BUCKET") and os.environ.get("LOCAL_SEARCH_ENABLED") == "true":
+        try:
+            result = local_index.search({**query, "sort": sort_order}, page, per_page)
+            single_notice = query.get("notice_id", "").strip()
+            live_lookup = (
+                int(result["total_records"]) == 0 and single_notice
+                and "," not in single_notice
+                and not any(query.get(key) for key in (
+                    "exclude_organization_name", "include_terms_any", "exclude_terms"
+                ))
+            )
+            if not live_lookup:
+                if page == 1 and record_history:
+                    storage.record_search(
+                        user_id, {**query, "sort": sort_order},
+                        int(result["total_records"]), config.history_retention_days,
+                    )
+                return result
+            LOGGER.info("Notice ID is absent from the active index; checking SAM.gov")
+        except local_index.LocalIndexUnavailable as exc:
+            LOGGER.warning("Local opportunity index unavailable; using SAM.gov: %s", exc)
+    if any(query.get(key) for key in (
+        "exclude_organization_name", "include_terms_any", "exclude_terms"
+    )):
+        raise local_index.LocalIndexUnavailable(
+            "Local search is temporarily unavailable for these filters. Try again after the index refresh."
+        )
     sam_params = build_search_parameters(query, config)
     parameter_sets = expand_search_parameters(sam_params, config.search_max_fanout)
     converged_key = storage.cache_key(
@@ -381,6 +411,8 @@ def _search(event: dict[str, Any], user_id: str) -> dict[str, Any]:
     else:
         result["cache_hit"] = True
 
+    result["source"] = "sam"
+
     total_records = int(result["total_records"])
     if page == 1 and record_history:
         history_query = dict(query)
@@ -391,6 +423,13 @@ def _search(event: dict[str, Any], user_id: str) -> dict[str, Any]:
 
 def _detail(notice_id: str) -> dict[str, Any]:
     config = get_runtime_config()
+    if os.environ.get("LOCAL_INDEX_BUCKET") and os.environ.get("LOCAL_SEARCH_ENABLED") == "true":
+        try:
+            opportunity = local_index.detail(notice_id)
+            if opportunity:
+                return opportunity
+        except local_index.LocalIndexUnavailable:
+            pass
     key = storage.cache_key("detail-cache", notice_id)
     opportunity = storage.get_cached(key, config.search_cache_ttl_seconds)
     if opportunity is None:
@@ -410,6 +449,15 @@ def _entity_search(event: dict[str, Any]) -> dict[str, Any]:
     except ValueError as exc:
         raise ValueError("page must be an integer") from exc
     criteria = sanitize_entity_criteria(query)
+    if os.environ.get("LOCAL_INDEX_BUCKET") and os.environ.get("LOCAL_SEARCH_ENABLED") == "true":
+        try:
+            result = local_entity_index.search(criteria, page)
+            single_uei = criteria.get("uei", "").strip()
+            if result["total_records"] or not single_uei or "," in single_uei:
+                return result
+            LOGGER.info("UEI is absent from the active index; checking SAM.gov")
+        except local_index.LocalIndexUnavailable as exc:
+            LOGGER.info("Using live SAM entity search: %s", exc)
     params = build_entity_search_parameters(criteria)
     key = storage.cache_key(
         "entity-search-cache", {"params": params, "page": page}
@@ -427,6 +475,7 @@ def _entity_search(event: dict[str, Any]) -> dict[str, Any]:
         "total_records": total_records,
         "has_next": page * 10 < total_records,
         "cache_hit": cache_hit,
+        "source": "sam",
     }
 
 
@@ -434,6 +483,13 @@ def _entity_detail(uei: str) -> dict[str, Any]:
     clean_uei = uei.strip().upper()
     if not re.fullmatch(r"[A-Z0-9]{12}", clean_uei):
         raise ValueError("UEI must be 12 letters or numbers")
+    if os.environ.get("LOCAL_INDEX_BUCKET") and os.environ.get("LOCAL_SEARCH_ENABLED") == "true":
+        try:
+            local_entity = local_entity_index.detail(clean_uei)
+            if local_entity:
+                return local_entity
+        except local_index.LocalIndexUnavailable:
+            pass
     config = get_runtime_config()
     key = storage.cache_key("entity-detail-cache", clean_uei)
     entity = storage.get_cached(key, config.search_cache_ttl_seconds)
@@ -480,6 +536,23 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                 **access,
             },
         )
+
+    if path == "/admin/ingestion":
+        _require_admin(event)
+        if method == "GET":
+            return response(200, admin_operations.overview())
+
+    if path == "/admin/ingestion/run" and method == "POST":
+        _require_admin(event)
+        return response(202, admin_operations.start(str(_body(event).get("dataset") or "")))
+
+    if path == "/admin/ingestion/validate" and method == "POST":
+        _require_admin(event)
+        return response(200, admin_operations.validate_index(str(_body(event).get("kind") or "")))
+
+    if path == "/admin/costs" and method == "GET":
+        _require_admin(event)
+        return response(200, admin_operations.costs())
 
     if path == "/admin/companies":
         _require_admin(event)
@@ -994,6 +1067,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     except SamApiError as exc:
         LOGGER.warning("SAM.gov request failed: %s", exc)
         return response(exc.status_code, {"message": str(exc), "request_id": request_id})
+    except local_index.LocalIndexUnavailable as exc:
+        return response(503, {"message": str(exc), "request_id": request_id})
     except SearchInterpreterError as exc:
         LOGGER.warning("AI search interpretation failed: %s", exc)
         return response(502, {"message": str(exc), "request_id": request_id})

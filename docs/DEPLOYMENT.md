@@ -11,7 +11,7 @@ configuration validator rejects a different profile.
 - Node.js 22 and npm
 - AWS CLI v2
 - `zip`, `jq`, and `shasum`
-- a working AWS CLI profile named `workshop` with CloudFormation, IAM, Lambda, API Gateway, Cognito, DynamoDB, S3, CloudFront, Route 53, CloudWatch Logs, SSM, and KMS permissions
+- a working AWS CLI profile named `workshop` with CloudFormation, IAM, Lambda, API Gateway, Cognito, DynamoDB, S3, CloudFront, Route 53, CloudWatch Logs, SSM, CodeBuild, EventBridge Scheduler, SQS, Cost Explorer, and KMS permissions
 - Amazon Bedrock model access for the configured AI search model (the default is Amazon Nova Lite)
 
 The development region comes from `config/dev.govvue-light.yml` and is
@@ -22,12 +22,12 @@ created by the application stacks:
 
 - the `workshop` AWS account and CLI profile;
 - the public `govvue.com` Route 53 hosted zone and registrar delegation;
-- issued ACM certificates for `app.govvue.com` and `auth.govvue.com` in `us-east-1`;
+- issued ACM certificates for `app.govvue.com`, `admin.govvue.com`, and `auth.govvue.com` in `us-east-1`;
 - a Google Cloud Web OAuth client configured for the Cognito callback; and
 - the local `config/dev.govvue-light.yml`, including the SAM.gov API key and Google OAuth client values.
 
 CloudFormation attaches the existing certificates and creates the
-`app.govvue.com` and `auth.govvue.com` A and AAAA aliases. The certificates
+`app.govvue.com`, `admin.govvue.com`, and `auth.govvue.com` A and AAAA aliases. The certificates
 themselves and the hosted zone remain external prerequisites.
 
 CloudFormation also creates the SES `govvue.com` identity and its Route 53 DKIM
@@ -58,8 +58,10 @@ Also confirm that the local configuration contains these deployment values:
 aws_profile: workshop
 aws_region: us-east-1
 app_domain_name: app.govvue.com
+admin_domain_name: admin.govvue.com
 hosted_zone_id: Z04260832ZB8NBYSOXBA7
 acm_certificate_arn: arn:aws:acm:us-east-1:428613119099:certificate/f810f621-f8fb-449e-9f51-a793dcc69904
+admin_acm_certificate_arn: arn:aws:acm:us-east-1:428613119099:certificate/34a81925-3834-4e8b-8f75-1e1e83a8bbce
 cognito_domain_name: auth.govvue.com
 cognito_certificate_arn: arn:aws:acm:us-east-1:428613119099:certificate/c95d7e53-6862-415a-8167-0b75af11e2ec
 cors_allowed_origin: https://app.govvue.com
@@ -143,9 +145,12 @@ The end-to-end command performs these operations in order:
 10. publishes the built frontend to the private website bucket; and
 11. invalidates CloudFront.
 
-The application stack also enables the daily EventBridge schedule, SQS page and
+The application stack also enables the daily notification EventBridge schedule, SQS page and
 notification queues, daily-feed and notification Lambdas, SES domain identity,
 DKIM records, and daily-feed storage.
+The local data ingestion schedules are initially **DISABLED**. The build and
+download resources are provisioned, but do not spend SAM.gov quota or replace
+the live search automatically before the backfill is verified.
 
 The final command prints the custom website URL. CloudFront creation can take
 several minutes. The two expected stacks are `govvue-light-dev-bootstrap` and
@@ -283,6 +288,83 @@ curl --fail --silent --show-error "$API_URL/health"
 
 Finally, sign in at `https://app.govvue.com`, change the temporary Cognito
 password, and perform one SAM.gov search.
+
+## Local-data migration and first backfill
+
+The original live search remains active after deployment because
+`local_search_enabled: false` and `ingest_schedule_state: DISABLED` are the
+initial YAML values. The admin console is at `https://admin.govvue.com` and
+uses the same Cognito pool. Admins can open it directly or follow the **Admin**
+link in the app. Because the two sites have different browser origins, each
+can authenticate directly. When one is already signed in, the other can reuse
+that session through a same-site, origin-checked sign-in bridge. This does not
+put tokens in URLs or domain-wide cookies. If the browser blocks the bridge,
+sign in directly on the second hostname. The API enforces the `admin` group on
+every admin operation.
+
+Run the two baselines from **Admin → Operations** in this order:
+
+1. **Opportunity full snapshot**. The batch worker downloads the public active
+   CSV, keeps the raw file, builds and validates SQLite/FTS, uploads an immutable
+   version, and switches `indexes/opportunities/current.json` last.
+2. **Entity monthly baseline**. This downloads the latest first-Sunday public
+   UTF-8 ZIP, indexes active records, replays any newer daily JSON files, then
+   switches `indexes/entities/current.json` last. It can take over an hour.
+
+The equivalent workshop CLI command is:
+
+```bash
+INGEST_QUEUE_URL="$(aws cloudformation describe-stacks \
+  --stack-name govvue-light-dev --profile workshop --region us-east-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`IngestQueueUrl`].OutputValue' \
+  --output text)"
+aws sqs send-message --queue-url "$INGEST_QUEUE_URL" \
+  --message-body '{"action":"build","dataset":"opportunity-daily"}' \
+  --profile workshop --region us-east-1
+aws sqs send-message --queue-url "$INGEST_QUEUE_URL" \
+  --message-body '{"action":"build","dataset":"entity-monthly"}' \
+  --profile workshop --region us-east-1
+```
+
+Inspect build status, count, date, and CloudWatch log links in Admin. Compare
+representative searches—especially multi-NAICS OR, field-level AND, civilian
+agency exclusion, active status, response deadlines, and the saved WON entity
+queries—against live SAM. A raw source or missing manifest is a failed
+backfill, not a reason to enable the new path. Leave the old live path in place
+while discrepancies are investigated. Use **Test local search** on each Admin
+index card before cutover; it exercises the published index even while the
+public search flag is off and reports the first-request duration. Keep the
+cold request below the API Gateway timeout before switching users over.
+
+After the baselines are sound, set these values in the environment YAML:
+
+```yaml
+local_search_enabled: true
+ingest_schedule_state: ENABLED
+```
+
+Then run `./scripts/deploy.sh --env dev --component config` followed by
+`./scripts/deploy.sh --env dev --component infra`. Because CloudFormation
+resolves the SSM values into Lambda environment variables, the stack update is
+required to turn on local search. The schedule expressions are also driven by
+YAML/SSM; changing one requires the same config + infrastructure update. The
+defaults are opportunity full snapshot at 06:00, recent-posted API polls at
+08:00/11:00/14:00/17:00, entity JSON update at 04:00, and monthly public
+entity replacement at 09:00 on days 1–10 (the worker runs only once the
+first-Sunday file is available), all `America/New_York`.
+
+The daily notification schedule remains per user. When local search is enabled,
+its shared feed reads a pinned, published local index instead of making one SAM
+request per feed page. Email deduplication and saved notification definitions
+remain unchanged. Scheduled notifications wait for the day's full opportunity
+snapshot and catch up after it publishes if their configured time has passed.
+A manually requested run can fall back to the existing SAM feed when the index
+is missing; the source choice is pinned in run metadata so pages do not mix.
+
+To roll search back without deleting data, set `local_search_enabled: false`,
+sync config, and redeploy infrastructure. Leave ingestion disabled or enabled
+separately. S3 versioning preserves earlier manifests and index objects; do not
+delete them during a rollback.
 
 ## Subsequent updates
 

@@ -39,6 +39,9 @@ export interface SearchResponse {
   cache_hit: boolean;
   upstream_queries: number;
   sort: string;
+  source?: 'local' | 'sam';
+  source_date?: string;
+  index_version?: string;
 }
 
 export interface Company {
@@ -182,6 +185,9 @@ export interface EntitySearchResponse {
   total_records: number;
   has_next: boolean;
   cache_hit: boolean;
+  source?: 'local' | 'sam';
+  source_date?: string;
+  index_version?: string;
 }
 
 export interface SavedSearch {

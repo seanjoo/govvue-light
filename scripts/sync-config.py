@@ -18,8 +18,10 @@ PARAMETERS: dict[str, tuple[str, str, str]] = {
     "SamEntitiesApi": ("sam_entities_api", "String", "SAM.gov Entity Management API URL"),
     "SamSiteBaseUrl": ("sam_site_base_url", "String", "SAM.gov website base URL"),
     "AppDomainName": ("app_domain_name", "String", "CloudFront application hostname"),
+    "AdminDomainName": ("admin_domain_name", "String", "Administration hostname"),
     "HostedZoneId": ("hosted_zone_id", "String", "Route 53 public hosted zone ID"),
     "AcmCertificateArn": ("acm_certificate_arn", "String", "CloudFront ACM certificate ARN"),
+    "AdminAcmCertificateArn": ("admin_acm_certificate_arn", "String", "Administration CloudFront ACM certificate ARN"),
     "CognitoDomainName": ("cognito_domain_name", "String", "Cognito custom authentication hostname"),
     "CognitoCertificateArn": ("cognito_certificate_arn", "String", "Cognito custom-domain ACM certificate ARN"),
     "GoogleOAuthClientId": ("google_oauth_client_id", "String", "Google Web OAuth client ID"),
@@ -44,9 +46,16 @@ PARAMETERS: dict[str, tuple[str, str, str]] = {
     "AiSearchModelId": ("ai_search_model_id", "String", "Bedrock model for natural-language search planning"),
     "AiSearchMaxTokens": ("ai_search_max_tokens", "String", "Maximum Bedrock response tokens for search planning"),
     "DailyFeedScheduleExpression": ("daily_feed_schedule_expression", "String", "Daily EventBridge schedule expression"),
+    "OpportunityDailyScheduleExpression": ("opportunity_daily_schedule_expression", "String", "Daily active opportunity snapshot schedule"),
+    "OpportunityPollScheduleExpression": ("opportunity_poll_schedule_expression", "String", "Intraday opportunity API poll schedule"),
+    "EntityMonthlyScheduleExpression": ("entity_monthly_schedule_expression", "String", "Monthly public entity snapshot schedule"),
+    "EntityDailyScheduleExpression": ("entity_daily_schedule_expression", "String", "Daily public entity update schedule"),
+    "IngestScheduleState": ("ingest_schedule_state", "String", "Enable ingestion schedules after validated backfill"),
+    "LocalSearchEnabled": ("local_search_enabled", "String", "Use validated local indexes for search"),
     "DailyFeedTimezone": ("daily_feed_timezone", "String", "Daily EventBridge schedule time zone"),
     "DailyNotificationDefaultTime": ("daily_notification_default_time", "String", "Default daily notification time"),
     "NotificationFromEmail": ("notification_from_email", "String", "Daily notification sender address"),
+    "OpsAlertEmail": ("ops_alert_email", "String", "Recipient for ingestion health alerts"),
     "SesIdentityDomain": ("ses_identity_domain", "String", "SES domain identity"),
 }
 
@@ -81,8 +90,10 @@ def main() -> int:
     for parameter_key, (config_key, parameter_type, description) in PARAMETERS.items():
         name = f"{prefix}/{parameter_key}"
         secret = parameter_type == "SecureString"
+        raw_value = config[config_key]
+        parameter_value = str(raw_value).lower() if isinstance(raw_value, bool) else str(raw_value)
         if args.dry_run:
-            display = "<redacted>" if secret else str(config[config_key])
+            display = "<redacted>" if secret else parameter_value
             print(f"WOULD WRITE {name} ({parameter_type}) = {display}")
             continue
 
@@ -94,7 +105,7 @@ def main() -> int:
                 "--name",
                 name,
                 "--value",
-                str(config[config_key]),
+                parameter_value,
                 "--type",
                 parameter_type,
                 "--description",

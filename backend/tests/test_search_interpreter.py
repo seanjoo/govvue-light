@@ -75,7 +75,7 @@ class SearchInterpreterTests(unittest.TestCase):
                 "Find opportunities that fit our company", "include", {}, config()
             )
 
-    def test_generated_plan_is_broadened_to_stay_within_fanout_limit(self):
+    def test_generated_plan_keeps_all_valid_local_filter_choices(self):
         criteria, warnings = search_interpreter._criteria(
             {
                 "naics_code": "541511,541512,541519,518210",
@@ -84,9 +84,26 @@ class SearchInterpreterTests(unittest.TestCase):
             },
             config(),
         )
-        self.assertLessEqual(search_interpreter._fanout_count(criteria), 12)
-        self.assertNotIn("set_aside", criteria)
-        self.assertTrue(warnings)
+        self.assertEqual(criteria["naics_code"], "541511,541512,541519,518210")
+        self.assertEqual(criteria["set_aside"], "SBA,SBP,8A,8AN")
+        self.assertEqual(criteria["classification_code"], "DA01,DA10,DB01")
+        self.assertFalse(warnings)
+
+    @patch("search_interpreter.boto3.client")
+    def test_civilian_search_excludes_dod_even_if_model_includes_it(self, client_factory):
+        bedrock = MagicMock()
+        client_factory.return_value = bedrock
+        bedrock.converse.return_value = {"output": {"message": {"content": [{"text": json.dumps({
+            "used_company_profile": False,
+            "criteria": {"organization_name": ["Department of Defense", "Department of Energy"], "ptype": ["o", "k"]},
+        })}]}}}
+        result = search_interpreter.interpret_search(
+            "Find civilian cloud platform support", "auto", {"overview": "DoD work"}, config()
+        )
+        self.assertFalse(result["used_company_profile"])
+        self.assertEqual(result["criteria"]["organization_name"], "Department of Energy")
+        self.assertIn("Department of Defense", result["criteria"]["exclude_organization_name"])
+        self.assertTrue(any("Civilian sector" in note for note in result["assumptions"]))
 
 
 if __name__ == "__main__":

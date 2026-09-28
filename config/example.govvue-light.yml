@@ -4,8 +4,10 @@ environment: dev
 aws_profile: workshop
 aws_region: us-east-1
 app_domain_name: app.govvue.com
+admin_domain_name: admin.govvue.com
 hosted_zone_id: Z00000000000000000000
 acm_certificate_arn: arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000
+admin_acm_certificate_arn: arn:aws:acm:us-east-1:123456789012:certificate/22222222-2222-2222-2222-222222222222
 cognito_domain_name: auth.govvue.com
 cognito_certificate_arn: arn:aws:acm:us-east-1:123456789012:certificate/11111111-1111-1111-1111-111111111111
 
@@ -44,5 +46,15 @@ ai_search_max_tokens: 1000
 daily_feed_schedule_expression: "cron(0/5 * * * ? *)"
 daily_feed_timezone: America/New_York
 daily_notification_default_time: "06:15"
+# Ingestion runs use America/New_York. Edit these values, sync SSM, then update
+# CloudFormation to change the schedule without editing infrastructure code.
+opportunity_daily_schedule_expression: "cron(0 6 * * ? *)"
+opportunity_poll_schedule_expression: "cron(0 8,11,14,17 * * ? *)"
+entity_monthly_schedule_expression: "cron(0 9 1-10 * ? *)"
+entity_daily_schedule_expression: "cron(0 4 * * ? *)"
+# Keep disabled until both baseline indexes are published and checked.
+ingest_schedule_state: DISABLED
+local_search_enabled: false
 notification_from_email: notifications@govvue.com
+ops_alert_email: sean.joo@latticeworksinc.com
 ses_identity_domain: govvue.com

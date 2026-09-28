@@ -1,0 +1,11 @@
+.admin-shell .navbar > .container-xl { display: flex; flex-wrap: wrap; gap: 1rem; }
+.admin-shell .navbar-brand { color: #165a9d; font-weight: 700; text-decoration: none; }
+.admin-nav { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+.admin-nav a { color: #334155; font-weight: 600; text-decoration: none; }
+.admin-nav a:hover, .admin-nav a:focus { color: #165a9d; }
+.admin-account { display: flex; align-items: center; gap: .75rem; margin-left: auto; }
+@media (max-width: 800px) {
+  .admin-shell .navbar > .container-xl { align-items: flex-start; }
+  .admin-nav { order: 3; width: 100%; }
+  .admin-account { margin-left: 0; }
+}

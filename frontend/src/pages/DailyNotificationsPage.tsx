@@ -234,7 +234,7 @@ export default function DailyNotificationsPage() {
           <MultiSelectFilter id="notification-ptype" label="Notice type" value={filters.ptype} options={NOTICE_TYPE_OPTIONS} update={(value) => updateFilter('ptype', value)} />
           <MultiSelectFilter id="notification-set-aside" label="Set-aside" value={filters.set_aside} options={SET_ASIDE_OPTIONS} update={(value) => updateFilter('set_aside', value)} />
           <MultiSelectFilter id="notification-state" label="Place-of-performance state" value={filters.state} options={STATE_OPTIONS} update={(value) => updateFilter('state', value)} />
-          <NaicsPicker id="notification" value={filters.naics_code} update={(value) => updateFilter('naics_code', value)} maxSelections={20} />
+          <NaicsPicker id="notification" value={filters.naics_code} update={(value) => updateFilter('naics_code', value)} />
         </div>
         <p className="usa-hint margin-top-2">Multiple values within one filter use OR; different filters use AND. The posted-date window is always yesterday through today.</p>
         <button className="usa-button margin-top-2" type="submit" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Update notification' : 'Create notification'}</button>

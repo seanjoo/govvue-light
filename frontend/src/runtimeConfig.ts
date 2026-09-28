@@ -5,6 +5,8 @@ export interface RuntimeConfig {
   userPoolClientId: string;
   cognitoDomain: string;
   appTitle: string;
+  appBaseUrl: string;
+  adminBaseUrl: string;
   buildId: string;
   dailyNotificationDefaultTime: string;
 }
@@ -24,6 +26,8 @@ export const runtimeConfig: RuntimeConfig = {
   userPoolClientId: raw.userPoolClientId ?? '',
   cognitoDomain: raw.cognitoDomain ?? '',
   appTitle: raw.appTitle ?? 'GovVue Light',
+  appBaseUrl: raw.appBaseUrl ?? 'https://app.govvue.com',
+  adminBaseUrl: raw.adminBaseUrl ?? 'https://admin.govvue.com',
   buildId: raw.buildId ?? 'local',
   dailyNotificationDefaultTime: raw.dailyNotificationDefaultTime ?? '06:15',
 };

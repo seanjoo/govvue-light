@@ -20,13 +20,15 @@ export default function LoginPage() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const isAdminHost = window.location.origin === runtimeConfig.adminBaseUrl;
 
   const requestedPath = (() => {
     const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
     const fromPath = from?.pathname ? `${from.pathname}${from.search || ''}` : '';
     const storedPath = window.sessionStorage.getItem('govvue.oauth.returnTo') || '';
     const candidate = fromPath || storedPath;
-    return candidate.startsWith('/') && !candidate.startsWith('//') ? candidate : '/search';
+    const defaultPath = isAdminHost ? '/' : '/search';
+    return candidate.startsWith('/') && !candidate.startsWith('//') ? candidate : defaultPath;
   })();
   const creatingPassword = newPasswordRequired || resetMode === 'confirm';
   const passwordValid = passwordMeetsPolicy(password);
@@ -127,7 +129,7 @@ export default function LoginPage() {
               ? 'We will send a password-reset code to your verified email address.'
               : resetMode === 'confirm'
                 ? 'Enter the emailed code and choose a new password.'
-            : 'Search and save active federal contract opportunities.'}
+            : isAdminHost ? 'Sign in to GovVue Light administration.' : 'Search and save active federal contract opportunities.'}
         </p>
         {(error || oauthError) && <div className="usa-alert usa-alert--error" role="alert"><div className="usa-alert__body"><p className="usa-alert__text">{error || oauthError}</p></div></div>}
         {message && <div className="usa-alert usa-alert--info" role="status"><div className="usa-alert__body"><p className="usa-alert__text">{message}</p></div></div>}
@@ -221,9 +223,15 @@ export default function LoginPage() {
           >{resetMode === 'none' ? 'Forgot password?' : 'Back to sign in'}</button>
         )}
         <nav className="login-public-links" aria-label="Public information">
-          <Link to="/about">About</Link>
-          <Link to="/privacy">Privacy</Link>
-          <Link to="/terms">Terms</Link>
+          {isAdminHost ? <>
+            <a href={`${runtimeConfig.appBaseUrl}/about`}>About</a>
+            <a href={`${runtimeConfig.appBaseUrl}/privacy`}>Privacy</a>
+            <a href={`${runtimeConfig.appBaseUrl}/terms`}>Terms</a>
+          </> : <>
+            <Link to="/about">About</Link>
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Terms</Link>
+          </>}
         </nav>
       </div>
     </main>

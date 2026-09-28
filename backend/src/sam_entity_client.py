@@ -83,6 +83,7 @@ MULTI_VALUE_FILTERS = {
 
 MAX_VALUES_PER_FILTER = 100
 MAX_TEXT_LENGTH = 300
+MAX_CRITERIA_LENGTH = 2000
 DISALLOWED_VALUE_CHARACTERS = re.compile(r"[&|{}^\\]")
 UI_FILTERS = set(ENTITY_FILTERS) | {
     f"{name}_{boundary}" for name in DATE_FILTERS for boundary in ("from", "to")
@@ -100,7 +101,7 @@ def sanitize_entity_criteria(criteria: dict[str, Any]) -> dict[str, str]:
             raise ValueError(f"{key} must be a string")
         text = str(value).strip()
         if text:
-            clean[key] = text[:MAX_TEXT_LENGTH]
+            clean[key] = text[:MAX_CRITERIA_LENGTH]
     return clean
 
 
@@ -274,12 +275,14 @@ def normalize_entity(record: dict[str, Any], config: RuntimeConfig) -> dict[str,
         "sam_registered": registration.get("samRegistered") or "",
         "registration_status": status,
         "purpose_of_registration": registration.get("purposeOfRegistrationDesc") or "",
+        "purpose_registration_code": registration.get("purposeOfRegistrationCode") or "",
         "registration_date": registration.get("registrationDate") or "",
         "activation_date": registration.get("activationDate") or "",
         "last_update_date": registration.get("lastUpdateDate") or "",
         "expiration_date": registration.get("registrationExpirationDate") or "",
         "uei_status": registration.get("ueiStatus") or "",
         "exclusion_status": registration.get("exclusionStatusFlag") or "",
+        "debt_subject_to_offset": registration.get("debtSubjectToOffset") or "",
         "address": {
             "line1": physical.get("addressLine1") or "",
             "line2": physical.get("addressLine2") or "",
@@ -298,7 +301,12 @@ def normalize_entity(record: dict[str, Any], config: RuntimeConfig) -> dict[str,
         },
         "website": entity_information.get("entityURL") or entity_information.get("entityUrl") or "",
         "entity_structure": general.get("entityStructureDesc") or "",
+        "entity_structure_code": general.get("entityStructureCode") or "",
         "organization_structure": general.get("organizationStructureDesc") or "",
+        "organization_structure_code": general.get("organizationStructureCode") or "",
+        "incorporation_state_code": general.get("stateOfIncorporationCode") or "",
+        "incorporation_country_code": general.get("countryOfIncorporationCode") or "",
+        "congressional_district": physical.get("congressionalDistrict") or "",
         "business_types": _compact_list(
             business_types.get("businessTypeList"), "businessTypeCode", "businessTypeDesc"
         ),

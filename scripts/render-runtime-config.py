@@ -15,6 +15,8 @@ def main() -> int:
     parser.add_argument("--user-pool-client-id", required=True)
     parser.add_argument("--cognito-domain", required=True)
     parser.add_argument("--app-title", required=True)
+    parser.add_argument("--app-base-url", required=True)
+    parser.add_argument("--admin-base-url", required=True)
     parser.add_argument("--daily-notification-default-time", required=True)
     parser.add_argument("--build-id", required=True)
     args = parser.parse_args()
@@ -25,6 +27,8 @@ def main() -> int:
         "userPoolClientId": args.user_pool_client_id,
         "cognitoDomain": args.cognito_domain,
         "appTitle": args.app_title,
+        "appBaseUrl": args.app_base_url,
+        "adminBaseUrl": args.admin_base_url,
         "dailyNotificationDefaultTime": args.daily_notification_default_time,
         "buildId": args.build_id,
     }

@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from app import (
     _converged_search,
+    _search,
+    _entity_search,
     _entity_detail,
     _notification_schedule_time,
     _route,
@@ -94,6 +96,47 @@ class PreflightRouteTests(unittest.TestCase):
 
         self.assertEqual(result["statusCode"], 200)
         self.assertEqual(result["body"], "{}")
+
+
+class MissingActiveIdFallbackTests(unittest.TestCase):
+    @patch.dict(os.environ, {"LOCAL_SEARCH_ENABLED": "true", "LOCAL_INDEX_BUCKET": "test-bucket"})
+    @patch("app.storage.put_cached")
+    @patch("app.storage.get_cached", return_value=None)
+    @patch("app.storage.cache_key", return_value="cache")
+    @patch("app._converged_search")
+    @patch("app.expand_search_parameters", return_value=[{}])
+    @patch("app.build_search_parameters", return_value={})
+    @patch("app.local_index.search", return_value={"total_records": 0})
+    @patch("app.get_runtime_config")
+    def test_missing_notice_id_checks_live_sam(
+        self, config, _local, _params, _expand, converged, _cache_key, _cache_get, _cache_put
+    ):
+        config.return_value = SimpleNamespace(
+            search_max_fanout=12, search_cache_ttl_seconds=300,
+            history_retention_days=30,
+        )
+        converged.return_value = {"total_records": 1, "items": [{"notice_id": "missing"}]}
+        result = _search({"queryStringParameters": {
+            "notice_id": "missing", "record_history": "false",
+        }}, "user-1")
+        self.assertEqual(result["source"], "sam")
+        converged.assert_called_once()
+
+    @patch.dict(os.environ, {"LOCAL_SEARCH_ENABLED": "true", "LOCAL_INDEX_BUCKET": "test-bucket"})
+    @patch("app.storage.put_cached")
+    @patch("app.storage.get_cached", return_value=None)
+    @patch("app.storage.cache_key", return_value="cache")
+    @patch("app.search_entities", return_value={"total_records": 1, "records": [{"uei": "MISSINGUEI01"}]})
+    @patch("app.build_entity_search_parameters", return_value={"ueiSAM": "MISSINGUEI01"})
+    @patch("app.local_entity_index.search", return_value={"total_records": 0})
+    @patch("app.get_runtime_config")
+    def test_missing_uei_checks_live_sam(
+        self, config, _local, _params, _sam, _cache_key, _cache_get, _cache_put
+    ):
+        config.return_value = SimpleNamespace(search_cache_ttl_seconds=300)
+        result = _entity_search({"queryStringParameters": {"uei": "MISSINGUEI01"}})
+        self.assertEqual(result["source"], "sam")
+        self.assertEqual(result["items"][0]["uei"], "MISSINGUEI01")
 
 
 class DailyNotificationRunRouteTests(unittest.TestCase):

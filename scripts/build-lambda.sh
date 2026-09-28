@@ -27,6 +27,7 @@ BUILD_DIR="$PROJECT_ROOT/.build/$BUILD_ID/lambda"
 PACKAGE_PATH="$BUILD_DIR/govvue-light-api-$BUILD_ID.zip"
 mkdir -p "$BUILD_DIR/package"
 cp "$PROJECT_ROOT"/backend/src/*.py "$BUILD_DIR/package/"
+cp "$PROJECT_ROOT/backend/src/buildspec.yml" "$BUILD_DIR/package/"
 find "$BUILD_DIR/package" -type d -name __pycache__ -prune -exec rm -r {} +
 (
   cd "$BUILD_DIR/package"

@@ -18,6 +18,9 @@ ALLOWED_NOTIFICATION_FILTERS = {
     "zip",
     "organization_code",
     "organization_name",
+    "exclude_organization_name",
+    "include_terms_any",
+    "exclude_terms",
     "response_deadline_from",
     "response_deadline_to",
     "open_deadlines_only",
@@ -31,7 +34,7 @@ def sanitize_criteria(raw: Any) -> dict[str, str]:
     for key, value in raw.items():
         if key not in ALLOWED_NOTIFICATION_FILTERS:
             continue
-        clean = str(value or "").strip()[:200]
+        clean = str(value or "").strip()[:2000]
         if clean:
             criteria[key] = clean
     for key in ("response_deadline_from", "response_deadline_to"):
@@ -104,6 +107,22 @@ def matches(opportunity: dict[str, Any], criteria: dict[str, str]) -> bool:
             else _contains(actual, criteria[key])
         ):
             return False
+
+    searchable_text = " ".join(str(opportunity.get(key) or "") for key in (
+        "title", "description", "organization_name", "agency_path",
+    ))
+    if "include_terms_any" in criteria and not _contains_any(
+        searchable_text, criteria["include_terms_any"]
+    ):
+        return False
+    if "exclude_terms" in criteria and _contains_any(
+        searchable_text, criteria["exclude_terms"]
+    ):
+        return False
+    if "exclude_organization_name" in criteria and _contains_any(
+        contains_fields["organization_name"], criteria["exclude_organization_name"], "|"
+    ):
+        return False
 
     exact_fields = {
         "naics_code": opportunity.get("naics_code"),

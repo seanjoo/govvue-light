@@ -31,11 +31,14 @@ USER_POOL_CLIENT_ID="$(stack_output "$APP_STACK" CognitoClientId "$PROFILE" "$RE
 COGNITO_DOMAIN="$(stack_output "$APP_STACK" CognitoDomain "$PROFILE" "$REGION")"
 WEBSITE_BUCKET="$(stack_output "$APP_STACK" WebsiteBucketName "$PROFILE" "$REGION")"
 DISTRIBUTION_ID="$(stack_output "$APP_STACK" CloudFrontDistributionId "$PROFILE" "$REGION")"
+ADMIN_DISTRIBUTION_ID="$(stack_output "$APP_STACK" AdminDistributionId "$PROFILE" "$REGION")"
 ARTIFACT_BUCKET="$(stack_output "$APP_STACK" ArtifactBucketName "$PROFILE" "$REGION")"
 APP_TITLE="$(aws ssm get-parameter \
   --name "/$PROJECT_NAME/$ENVIRONMENT/FrontendTitle" \
   --query Parameter.Value --output text \
   --profile "$PROFILE" --region "$REGION")"
+APP_BASE_URL="https://$(config_get "$CONFIG_FILE" app_domain_name)"
+ADMIN_BASE_URL="https://$(config_get "$CONFIG_FILE" admin_domain_name)"
 DAILY_NOTIFICATION_DEFAULT_TIME="$(aws ssm get-parameter \
   --name "/$PROJECT_NAME/$ENVIRONMENT/DailyNotificationDefaultTime" \
   --query Parameter.Value --output text \
@@ -49,6 +52,8 @@ FRONTEND_PACKAGE="$(BUILD_ID="$BUILD_ID" "$PROJECT_ROOT/scripts/build-frontend.s
   --user-pool-client-id "$USER_POOL_CLIENT_ID" \
   --cognito-domain "$COGNITO_DOMAIN" \
   --app-title "$APP_TITLE" \
+  --app-base-url "$APP_BASE_URL" \
+  --admin-base-url "$ADMIN_BASE_URL" \
   --daily-notification-default-time "$DAILY_NOTIFICATION_DEFAULT_TIME")"
 
 FRONTEND_KEY="releases/$BUILD_ID/frontend/$(basename "$FRONTEND_PACKAGE")"
@@ -79,6 +84,10 @@ aws s3 cp "$PROJECT_ROOT/frontend/dist/runtime-config.js" "s3://$WEBSITE_BUCKET/
 
 aws cloudfront create-invalidation \
   --distribution-id "$DISTRIBUTION_ID" \
+  --paths '/*' \
+  --profile "$PROFILE" >/dev/null
+aws cloudfront create-invalidation \
+  --distribution-id "$ADMIN_DISTRIBUTION_ID" \
   --paths '/*' \
   --profile "$PROFILE" >/dev/null
 

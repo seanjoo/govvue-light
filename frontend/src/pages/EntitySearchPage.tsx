@@ -179,7 +179,7 @@ export default function EntitySearchPage() {
         <details className="filter-details">
           <summary>Industry, product, and business-type filters</summary>
           <div className="grid-row grid-gap">
-            <NaicsPicker id="entity-search" value={filters.naics_code} update={(value) => update('naics_code', value)} maxSelections={20} />
+            <NaicsPicker id="entity-search" value={filters.naics_code} update={(value) => update('naics_code', value)} />
             <Filter label="Primary NAICS" name="primary_naics" value={filters.primary_naics} update={update} hint="Six-digit codes; separate multiple codes with commas." />
             <Filter label="NAICS description" name="naics_description" value={filters.naics_description} update={update} />
             <Filter label="NAICS limited small business" name="naics_limited_small_business" value={filters.naics_limited_small_business} update={update} hint="Six-digit NAICS code." />
@@ -208,9 +208,9 @@ export default function EntitySearchPage() {
           </div>
         </details>
 
-        <p className="usa-hint margin-top-2">Multiple values within one filter use OR; different filters use AND. GovVue requests public summary sections and displays 10 records per SAM.gov page.</p>
+        <p className="usa-hint margin-top-2">Multiple values within one filter use OR; different filters use AND. GovVue searches the local public index when its fields cover your filters, and uses SAM.gov for other filters.</p>
         <div className="entity-search-actions">
-          <button className="usa-button" type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search SAM.gov'}</button>
+          <button className="usa-button" type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search entities'}</button>
           <button className="usa-button usa-button--unstyled" type="button" onClick={reset}>Reset filters</button>
         </div>
       </form>
@@ -219,7 +219,7 @@ export default function EntitySearchPage() {
       {message && <Alert type="success">{message}</Alert>}
       {result && (
         <section aria-live="polite" aria-busy={loading} className="results-section">
-          <div className="results-summary"><h2>{result.total_records.toLocaleString()} entities</h2><span>{result.cache_hit ? 'Cached SAM.gov response' : 'Fresh SAM.gov response'} · 10 per page</span></div>
+          <div className="results-summary"><h2>{result.total_records.toLocaleString()} entities</h2><span>{result.source === 'local' ? `Local index · SAM data as of ${result.source_date || 'unknown'}` : result.cache_hit ? 'Cached SAM.gov response' : 'Fresh SAM.gov response'} · 10 per page</span></div>
           {result.items.length ? result.items.map((entity, index) => (
             <EntityCard
               key={entity.uei}

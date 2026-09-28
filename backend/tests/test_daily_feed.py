@@ -124,6 +124,33 @@ class DailyFeedTickTests(unittest.TestCase):
 
         start.assert_not_called()
 
+    @patch("daily_feed._start")
+    @patch("daily_feed.storage.list_enabled_daily_notifications")
+    @patch("daily_feed.get_runtime_config")
+    def test_tick_waits_for_fresh_local_index_and_catches_up(
+        self, get_config, list_notifications, start
+    ):
+        get_config.return_value = SimpleNamespace(daily_notification_default_time="06:15")
+        list_notifications.return_value = [
+            {"userId": "u1", "notificationId": "n1", "scheduleTime": "06:15"},
+        ]
+        fake_datetime = MagicMock(wraps=datetime)
+        fake_datetime.now.return_value = datetime(
+            2026, 9, 22, 8, 20, tzinfo=ZoneInfo("America/New_York")
+        )
+        with patch.dict(os.environ, {"LOCAL_SEARCH_ENABLED": "true"}), \
+             patch("daily_feed.datetime", fake_datetime), \
+             patch("daily_feed.local_index.current_manifest") as manifest:
+            manifest.return_value = {"source_date": "2026-09-21"}
+            daily_feed._tick({})
+            start.assert_not_called()
+            manifest.return_value = {"source_date": "2026-09-22"}
+            daily_feed._tick({})
+        self.assertEqual(
+            start.call_args.args[0]["targets"],
+            [{"user_id": "u1", "notification_id": "n1"}],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

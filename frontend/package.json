@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tabler/core": "1.6.0",
     "@uswds/uswds": "3.14.0",
     "aws-amplify": "6.16.4",
     "react": "19.2.0",

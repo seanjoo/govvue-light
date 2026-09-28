@@ -153,7 +153,7 @@ export default function Layout() {
                 ]}
               />
               <li><NavLink to="/company-profile" onClick={() => closeMobileNav()}>Company profile</NavLink></li>
-              {user?.role === 'admin' && <li><NavLink to="/admin/users" onClick={() => closeMobileNav()}>Admin</NavLink></li>}
+              {user?.role === 'admin' && <li><a href={runtimeConfig.adminBaseUrl} onClick={() => closeMobileNav()}>Admin</a></li>}
             </ul>
             <div className="app-mobile-signout">
               <button type="button" className="usa-button usa-button--unstyled" onClick={handleSignOut}>Sign out</button>

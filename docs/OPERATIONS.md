@@ -9,6 +9,9 @@ Default log groups:
 /aws/lambda/govvue-light-dev-daily-feed
 /aws/lambda/govvue-light-dev-notification
 /aws/apigateway/govvue-light-dev
+/aws/lambda/govvue-light-dev-entity-export
+/aws/lambda/govvue-light-dev-ingest-health
+/aws/codebuild/govvue-light-dev-ingest
 ```
 
 The Lambda does not log the SAM.gov URL containing the API key. API Gateway access logs contain route, status, response size, and latency but no authorization token.
@@ -25,6 +28,53 @@ aws cloudformation describe-stacks --stack-name govvue-light-dev --profile works
 ## Health check
 
 `GET /health` is the only unauthenticated API route. Retrieve `ApiEndpoint` from the application stack, then request `<ApiEndpoint>/health`.
+
+## Local index operations
+
+`https://admin.govvue.com` shows index counts/source dates, the last ten
+CodeBuild runs and logs, schedule state, SQS/DLQ depth, and manual job buttons.
+It also has a read-only Cost Explorer page. Costs are for the whole workshop
+account, not just GovVue Light, and current-month figures may lag.
+Administrators can run the read-only `POST /admin/ingestion/validate` API with
+`{"kind":"opportunities"}` or `{"kind":"entities"}` to measure a full cold
+local-search path before setting `local_search_enabled: true`.
+
+The local index and ingest schedules are controlled by the Git-ignored
+environment YAML (`local_search_enabled` and `ingest_schedule_state`), copied
+to SSM and then resolved into CloudFormation. The four ingest schedules and
+health check default to
+disabled until both baselines are built and sampled. The full opportunity CSV
+is authoritative for active/inactive state each day. Recent-posted API polls
+cannot detect every modification to an older notice. The public monthly entity
+ZIP is authoritative for active registrations at replacement time; daily
+active-only JSON updates cannot immediately remove early deactivations, so
+entity freshness can lag until the next replacement. The opportunity manifest
+tracks the last full-snapshot date separately from the intraday poll date so
+the health alert can detect a missed full download. Expiration dates are
+enforced locally. The first daily entity export after a monthly replacement
+requests updates from that replacement date through the current day, rather
+than only the previous day. The public extract's blank exclusion flag maps to
+the app's **No active exclusion** value.
+
+At 9:30 AM Eastern, a health check emails `ops_alert_email` only when an index
+is stale or missing, a recent batch build failed, or the ingestion DLQ is not
+empty. It is disabled together with the ingest schedules until cutover. The
+alert links to the admin Operations page; healthy days do not generate mail.
+
+Raw files, indexes, and the current manifest are in the private versioned
+`LocalIndexBucket`. The manifest changes only after checksum, count, and SQLite
+integrity checks. A failed build must leave the previous manifest in place.
+The SQLite artifacts are gzip-compressed in S3; API Lambdas verify each
+uncompressed SHA-256 while expanding it into `/tmp` on a cold start.
+Immutable index versions expire after 45 days, and superseded S3 object
+versions expire after 45 days, to bound S3 cost; a prolonged
+ingestion outage can therefore make local search fall back to SAM until an
+administrator rebuilds the index.
+Check the build log and the ingest DLQ before manually retrying. Do not turn
+on local search if a baseline manifest is absent or fails sample queries.
+
+For the first backfill, cutover, and rollback commands, see
+[Deployment](DEPLOYMENT.md#local-data-migration-and-first-backfill).
 
 ## Throttling and SAM.gov protection
 

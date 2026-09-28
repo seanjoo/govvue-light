@@ -21,12 +21,18 @@ Parameters:
   AppDomainName:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the CloudFront application hostname.
+  AdminDomainName:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the separate administration hostname.
   HostedZoneId:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the Route 53 public hosted zone ID.
   AcmCertificateArn:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the us-east-1 ACM certificate ARN.
+  AdminAcmCertificateArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the admin hostname's us-east-1 ACM certificate ARN.
   CognitoDomainName:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the Cognito custom authentication hostname.
@@ -39,9 +45,22 @@ Parameters:
   DailyFeedScheduleTimezone:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the EventBridge schedule time zone.
+  OpportunityDailyScheduleExpression:
+    Type: AWS::SSM::Parameter::Value<String>
+  OpportunityPollScheduleExpression:
+    Type: AWS::SSM::Parameter::Value<String>
+  EntityMonthlyScheduleExpression:
+    Type: AWS::SSM::Parameter::Value<String>
+  EntityDailyScheduleExpression:
+    Type: AWS::SSM::Parameter::Value<String>
+  IngestScheduleState:
+    Type: AWS::SSM::Parameter::Value<String>
   NotificationFromEmail:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the SES sender address.
+  OpsAlertEmail:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: SSM parameter containing the ingestion health recipient.
   SesIdentityDomain:
     Type: AWS::SSM::Parameter::Value<String>
     Description: SSM parameter containing the SES domain identity.
@@ -141,6 +160,382 @@ Resources:
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+
+  LocalIndexBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldOpportunityPolls
+            Status: Enabled
+            Prefix: raw/opportunities/polls/
+            ExpirationInDays: 45
+          - Id: ExpireOldOpportunitySnapshots
+            Status: Enabled
+            Prefix: raw/opportunities/daily/
+            ExpirationInDays: 90
+          - Id: ExpireOldEntityDailyExports
+            Status: Enabled
+            Prefix: raw/entities/daily/
+            ExpirationInDays: 90
+          - Id: ExpireOldEntityMonthlyExtracts
+            Status: Enabled
+            Prefix: raw/entities/monthly/
+            ExpirationInDays: 180
+          - Id: ExpireOldOpportunityIndexes
+            Status: Enabled
+            Prefix: indexes/opportunities/versions/
+            ExpirationInDays: 45
+          - Id: ExpireOldEntityIndexes
+            Status: Enabled
+            Prefix: indexes/entities/versions/
+            ExpirationInDays: 45
+          - Id: ExpireNoncurrentObjectVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 45
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  IngestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-${Environment}-ingest-dlq'
+      MessageRetentionPeriod: 1209600
+
+  IngestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-${Environment}-ingest'
+      VisibilityTimeout: 240
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IngestDeadLetterQueue.Arn
+        maxReceiveCount: 4
+
+  IngestScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DispatchIngestJobs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource:
+                  - !GetAtt IngestQueue.Arn
+                  - !GetAtt IngestDeadLetterQueue.Arn
+
+  IngestBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PublishLocalIndexes
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: BuildLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${ProjectName}-${Environment}-ingest:*'
+              - Sid: ReadReleaseArtifact
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub 'arn:${AWS::Partition}:s3:::${ArtifactBucketName}/${LambdaArtifactKey}'
+              - Sid: ReadWriteIndexesAndRaw
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${LocalIndexBucket.Arn}/*'
+              - Sid: ListRawFiles
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt LocalIndexBucket.Arn
+              - Sid: ReadSamApiKey
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${Environment}/SamApiKey'
+              - Sid: DecryptSamApiKey
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+
+  IngestBuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/codebuild/${ProjectName}-${Environment}-ingest'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  IngestBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-ingest'
+      Description: Build immutable local SAM opportunity and entity indexes on demand.
+      ServiceRole: !GetAtt IngestBuildRole.Arn
+      TimeoutInMinutes: 180
+      QueuedTimeoutInMinutes: 480
+      ConcurrentBuildLimit: 1
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Source:
+        Type: S3
+        Location: !Sub '${ArtifactBucketName}/${LambdaArtifactKey}'
+        BuildSpec: buildspec.yml
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/amazonlinux-x86_64-standard:5.0
+        PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: DATASET
+            Value: opportunity-daily
+          - Name: LOCAL_INDEX_BUCKET
+            Value: !Ref LocalIndexBucket
+          - Name: PROJECT_NAME
+            Value: !Ref ProjectName
+          - Name: APP_ENV
+            Value: !Ref Environment
+          - Name: SAM_OPPORTUNITIES_API
+            Value: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/SamOpportunitiesApi}}'
+          - Name: SAM_SITE_BASE_URL
+            Value: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/SamSiteBaseUrl}}'
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref IngestBuildLogGroup
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  EntityExportRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DispatchAndDownloadEntityExports
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: WriteLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${Environment}-entity-export:*'
+              - Sid: ReadSamApiKey
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${Environment}/SamApiKey'
+              - Sid: DecryptSamApiKey
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub 'ssm.${AWS::Region}.amazonaws.com'
+              - Sid: ReadAndStageExports
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${LocalIndexBucket.Arn}/*'
+              - Sid: StartIngestBuild
+                Effect: Allow
+                Action: codebuild:StartBuild
+                Resource: !GetAtt IngestBuildProject.Arn
+              - Sid: ConsumeAndReschedule
+                Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:SendMessage
+                Resource: !GetAtt IngestQueue.Arn
+
+  EntityExportFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-entity-export'
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: entity_export.lambda_handler
+      Role: !GetAtt EntityExportRole.Arn
+      MemorySize: 512
+      Timeout: 180
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Ref LambdaArtifactKey
+        S3ObjectVersion: !If
+          - HasLambdaArtifactVersion
+          - !Ref LambdaArtifactVersion
+          - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          ENTITY_EXPORT_QUEUE_URL: !Ref IngestQueue
+          LOCAL_INDEX_BUCKET: !Ref LocalIndexBucket
+          INGEST_BUILD_PROJECT: !Ref IngestBuildProject
+          SAM_API_KEY_PARAMETER: !Sub '/${ProjectName}/${Environment}/SamApiKey'
+          SAM_ENTITIES_API: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/SamEntitiesApi}}'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  EntityExportLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-entity-export'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  EntityExportEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 1
+      EventSourceArn: !GetAtt IngestQueue.Arn
+      FunctionName: !Ref EntityExportFunction
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+
+  IngestHealthRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CheckAndAlertIngestHealth
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${Environment}-ingest-health:*'
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub '${LocalIndexBucket.Arn}/indexes/opportunities/current.json'
+                  - !Sub '${LocalIndexBucket.Arn}/indexes/entities/current.json'
+              - Effect: Allow
+                Action: sqs:GetQueueAttributes
+                Resource: !GetAtt IngestDeadLetterQueue.Arn
+              - Effect: Allow
+                Action: [codebuild:ListBuildsForProject, codebuild:BatchGetBuilds]
+                Resource: !GetAtt IngestBuildProject.Arn
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: !Sub 'arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesIdentityDomain}'
+
+  IngestHealthFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-ingest-health'
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: ingest_health.lambda_handler
+      Role: !GetAtt IngestHealthRole.Arn
+      MemorySize: 256
+      Timeout: 30
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Ref LambdaArtifactKey
+        S3ObjectVersion: !If
+          - HasLambdaArtifactVersion
+          - !Ref LambdaArtifactVersion
+          - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          LOCAL_INDEX_BUCKET: !Ref LocalIndexBucket
+          INGEST_DLQ_URL: !Ref IngestDeadLetterQueue
+          INGEST_BUILD_PROJECT: !Ref IngestBuildProject
+          ADMIN_URL: !Sub 'https://${AdminDomainName}'
+          NOTIFICATION_FROM_EMAIL: !Ref NotificationFromEmail
+          OPS_ALERT_EMAIL: !Ref OpsAlertEmail
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  IngestHealthLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}-ingest-health'
+      RetentionInDays: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LogRetentionDays}}'
+
+  IngestHealthScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeIngestHealth
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt IngestHealthFunction.Arn
 
   WebsiteBucket:
     Type: AWS::S3::Bucket
@@ -438,8 +833,10 @@ Resources:
         - profile
       CallbackURLs:
         - !Sub 'https://${AppDomainName}/login'
+        - !Sub 'https://${AdminDomainName}/login'
       LogoutURLs:
         - !Sub 'https://${AppDomainName}/login'
+        - !Sub 'https://${AdminDomainName}/login'
       AccessTokenValidity: 1
       IdTokenValidity: 1
       RefreshTokenValidity: 30
@@ -606,6 +1003,10 @@ Resources:
                 Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub '${DailyFeedBucket.Arn}/*'
+              - Sid: ReadPinnedOpportunityIndex
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${LocalIndexBucket.Arn}/indexes/opportunities/*'
               - Sid: DailyFeedState
                 Effect: Allow
                 Action:
@@ -736,6 +1137,34 @@ Resources:
                 Effect: Allow
                 Action: s3:ListBucket
                 Resource: !GetAtt SearchCacheBucket.Arn
+              - Sid: ReadPublishedLocalIndex
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${LocalIndexBucket.Arn}/indexes/*'
+              - Sid: ReadIngestJobs
+                Effect: Allow
+                Action:
+                  - codebuild:ListBuildsForProject
+                  - codebuild:BatchGetBuilds
+                Resource: !GetAtt IngestBuildProject.Arn
+              - Sid: InspectIngestSchedules
+                Effect: Allow
+                Action: scheduler:GetSchedule
+                Resource: !Sub 'arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/${ProjectName}-${Environment}-*'
+              - Sid: InspectIngestQueues
+                Effect: Allow
+                Action: sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt IngestQueue.Arn
+                  - !GetAtt IngestDeadLetterQueue.Arn
+              - Sid: StartIngestJobs
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt IngestQueue.Arn
+              - Sid: ReadAccountCosts
+                Effect: Allow
+                Action: ce:GetCostAndUsage
+                Resource: '*'
               - Sid: StartDailyFeedRun
                 Effect: Allow
                 Action: sqs:SendMessage
@@ -788,8 +1217,10 @@ Resources:
       Architectures: [arm64]
       Handler: app.lambda_handler
       Role: !GetAtt ApiFunctionRole.Arn
-      MemorySize: 256
-      Timeout: 30
+      MemorySize: 2048
+      Timeout: 120
+      EphemeralStorage:
+        Size: 10240
       ReservedConcurrentExecutions: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LambdaReservedConcurrency}}'
       Code:
         S3Bucket: !Ref ArtifactBucketName
@@ -804,6 +1235,12 @@ Resources:
           CONFIG_PREFIX: !Sub '/${ProjectName}/${Environment}'
           STATE_TABLE: !Ref StateTable
           SEARCH_CACHE_BUCKET: !Ref SearchCacheBucket
+          LOCAL_INDEX_BUCKET: !Ref LocalIndexBucket
+          LOCAL_SEARCH_ENABLED: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LocalSearchEnabled}}'
+          INGEST_QUEUE_URL: !Ref IngestQueue
+          INGEST_DLQ_URL: !Ref IngestDeadLetterQueue
+          INGEST_BUILD_PROJECT: !Ref IngestBuildProject
+          INGEST_SCHEDULE_PREFIX: !Sub '${ProjectName}-${Environment}'
           FEED_QUEUE_URL: !Ref DailyFeedQueue
           USER_POOL_ID: !Ref UserPool
           DEFAULT_NOTIFICATION_TIME: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/DailyNotificationDefaultTime}}'
@@ -849,6 +1286,8 @@ Resources:
       Role: !GetAtt DailyFeedFunctionRole.Arn
       MemorySize: 512
       Timeout: 180
+      EphemeralStorage:
+        Size: 2048
       ReservedConcurrentExecutions: 1
       Code:
         S3Bucket: !Ref ArtifactBucketName
@@ -862,6 +1301,8 @@ Resources:
           CONFIG_PREFIX: !Sub '/${ProjectName}/${Environment}'
           STATE_TABLE: !Ref StateTable
           DAILY_FEED_BUCKET: !Ref DailyFeedBucket
+          LOCAL_INDEX_BUCKET: !Ref LocalIndexBucket
+          LOCAL_SEARCH_ENABLED: !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/LocalSearchEnabled}}'
           FEED_QUEUE_URL: !Ref DailyFeedQueue
           NOTIFICATION_QUEUE_URL: !Ref NotificationQueue
           FEED_TIMEZONE: !Ref DailyFeedScheduleTimezone
@@ -995,6 +1436,86 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt DailyScheduleDeadLetterQueue.Arn
 
+  OpportunityDailyIngestSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-opportunity-daily'
+      State: !Ref IngestScheduleState
+      ScheduleExpression: !Ref OpportunityDailyScheduleExpression
+      ScheduleExpressionTimezone: !Ref DailyFeedScheduleTimezone
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt IngestQueue.Arn
+        RoleArn: !GetAtt IngestScheduleRole.Arn
+        Input: '{"action":"build","dataset":"opportunity-daily"}'
+        DeadLetterConfig:
+          Arn: !GetAtt IngestDeadLetterQueue.Arn
+
+  OpportunityPollIngestSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-opportunity-poll'
+      State: !Ref IngestScheduleState
+      ScheduleExpression: !Ref OpportunityPollScheduleExpression
+      ScheduleExpressionTimezone: !Ref DailyFeedScheduleTimezone
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt IngestQueue.Arn
+        RoleArn: !GetAtt IngestScheduleRole.Arn
+        Input: '{"action":"build","dataset":"opportunity-poll"}'
+        DeadLetterConfig:
+          Arn: !GetAtt IngestDeadLetterQueue.Arn
+
+  EntityMonthlyIngestSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-entity-monthly'
+      State: !Ref IngestScheduleState
+      ScheduleExpression: !Ref EntityMonthlyScheduleExpression
+      ScheduleExpressionTimezone: !Ref DailyFeedScheduleTimezone
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt IngestQueue.Arn
+        RoleArn: !GetAtt IngestScheduleRole.Arn
+        Input: '{"action":"build","dataset":"entity-monthly"}'
+        DeadLetterConfig:
+          Arn: !GetAtt IngestDeadLetterQueue.Arn
+
+  EntityDailyIngestSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-entity-daily'
+      State: !Ref IngestScheduleState
+      ScheduleExpression: !Ref EntityDailyScheduleExpression
+      ScheduleExpressionTimezone: !Ref DailyFeedScheduleTimezone
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt IngestQueue.Arn
+        RoleArn: !GetAtt IngestScheduleRole.Arn
+        Input: '{"action":"start"}'
+        DeadLetterConfig:
+          Arn: !GetAtt IngestDeadLetterQueue.Arn
+
+  IngestHealthSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-ingest-health'
+      State: !Ref IngestScheduleState
+      ScheduleExpression: 'cron(30 9 * * ? *)'
+      ScheduleExpressionTimezone: !Ref DailyFeedScheduleTimezone
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt IngestHealthFunction.Arn
+        RoleArn: !GetAtt IngestHealthScheduleRole.Arn
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 2
+
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
@@ -1013,6 +1534,7 @@ Resources:
           - OPTIONS
         AllowOrigins:
           - !Sub '{{resolve:ssm:/${ProjectName}/${Environment}/CorsAllowedOrigin}}'
+          - !Sub 'https://${AdminDomainName}'
         MaxAge: 3600
 
   ApiAuthorizer:
@@ -1111,8 +1633,8 @@ Resources:
         SecurityHeadersConfig:
           ContentTypeOptions:
             Override: true
-          FrameOptions:
-            FrameOption: DENY
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: !Sub "frame-ancestors 'self' https://${AppDomainName} https://${AdminDomainName}"
             Override: true
           ReferrerPolicy:
             ReferrerPolicy: strict-origin-when-cross-origin
@@ -1185,7 +1707,9 @@ Resources:
             Resource: !Sub '${WebsiteBucket.Arn}/*'
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+                AWS:SourceArn:
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}'
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${AdminDistribution}'
           - Sid: DenyInsecureTransport
             Effect: Deny
             Principal: '*'
@@ -1216,6 +1740,68 @@ Resources:
             HostedZoneId: Z2FDTNDATAQYW2
             EvaluateTargetHealth: false
 
+  AdminDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub '${ProjectName}-${Environment}-admin'
+        Aliases:
+          - !Ref AdminDomainName
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: website
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt WebsiteOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: website
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          ResponseHeadersPolicyId: !Ref WebsiteSecurityHeaders
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AdminAcmCertificateArn
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  AdminDnsRecords:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      RecordSets:
+        - Name: !Ref AdminDomainName
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt AdminDistribution.DomainName
+            HostedZoneId: Z2FDTNDATAQYW2
+            EvaluateTargetHealth: false
+        - Name: !Ref AdminDomainName
+          Type: AAAA
+          AliasTarget:
+            DNSName: !GetAtt AdminDistribution.DomainName
+            HostedZoneId: Z2FDTNDATAQYW2
+            EvaluateTargetHealth: false
+
 Outputs:
   ApiEndpoint:
     Value: !GetAtt HttpApi.ApiEndpoint
@@ -1223,6 +1809,8 @@ Outputs:
     Value: !Ref ArtifactBucketName
   CloudFrontDistributionId:
     Value: !Ref WebsiteDistribution
+  AdminDistributionId:
+    Value: !Ref AdminDistribution
   CloudFrontDomainName:
     Value: !GetAtt WebsiteDistribution.DomainName
   CognitoClientId:
@@ -1235,6 +1823,12 @@ Outputs:
     Value: !Ref SearchCacheBucket
   DailyFeedBucketName:
     Value: !Ref DailyFeedBucket
+  LocalIndexBucketName:
+    Value: !Ref LocalIndexBucket
+  IngestQueueUrl:
+    Value: !Ref IngestQueue
+  IngestBuildProjectName:
+    Value: !Ref IngestBuildProject
   DailyFeedQueueUrl:
     Value: !Ref DailyFeedQueue
   DailyFeedScheduleName:

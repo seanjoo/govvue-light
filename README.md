@@ -1,8 +1,8 @@
 # GovVue Light
 
-GovVue Light is a small, private search-and-view application for SAM.gov contract opportunities and entities. It searches SAM.gov on demand, caches upstream pages to reduce API calls, and lets each Cognito user keep reusable searches and saved opportunity and entity snapshots.
+GovVue Light is a small, private search-and-view application for SAM.gov contract opportunities and entities. It keeps reusable searches and saved opportunity and entity snapshots per Cognito user. A staged local-data release adds public active-opportunity and entity indexes while retaining the direct SAM search path for fallback.
 
-The frontend uses the U.S. Web Design System (USWDS). The deployment is serverless and does not attach Lambda to a VPC, so it does not require a NAT gateway.
+The research frontend uses the U.S. Web Design System (USWDS); the new admin console uses Tabler. On-demand CodeBuild handles bulk data, and Lambda does not attach to a VPC, so no NAT gateway or always-on compute is required.
 
 ## Included
 
@@ -26,6 +26,7 @@ The frontend uses the U.S. Web Design System (USWDS). The deployment is serverle
 - YAML-to-SSM configuration, including SecureString SAM.gov and Google OAuth secrets
 - Timestamped Lambda, frontend, and CloudFormation release artifacts
 - Component deployment scripts and one end-to-end deployment command
+- Staged local SQLite/FTS search, daily active-opportunity snapshot, four configurable intraday polls, monthly public entity replacement with daily JSON updates, and a separate admin console at `admin.govvue.com`
 
 ## Quick start
 
@@ -62,6 +63,7 @@ infrastructure and the `app.govvue.com` and `auth.govvue.com` A/AAAA aliases are
 - [Configuration and SSM mapping](docs/CONFIGURATION.md)
 - [Operations and troubleshooting](docs/OPERATIONS.md)
 - [HTTP API](docs/API.md)
+- [Local-data plan and acceptance sequence](docs/LOCAL_DATA_SEARCH_PLAN.md)
 
 ## Repository layout
 
