@@ -39,8 +39,7 @@ export default function OpportunityCard({ opportunity, onSave, navigation, retur
         )}
       </div>
       <dl className="opportunity-meta">
-        <div><dt>Notice ID</dt><dd>{opportunity.notice_id || '—'}</dd></div>
-        <div><dt>Solicitation</dt><dd>{opportunity.solicitation_number || '—'}</dd></div>
+        <div><dt>SAM.gov Notice ID</dt><dd>{opportunity.solicitation_number || '—'}</dd></div>
         <div><dt>Response due</dt><dd>{opportunity.response_deadline || 'Not provided'}</dd></div>
         <div><dt>NAICS</dt><dd>{opportunity.naics_code || '—'}</dd></div>
       </dl>

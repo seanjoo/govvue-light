@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import local_index
 import ingest_opportunities
+from opportunity_versions import collapse_versions
 from local_index_builder import apply_delta, build_from_csv
 
 
@@ -101,6 +102,84 @@ class LocalIndexTests(unittest.TestCase):
             )
         self.assertEqual(result["total_records"], 2)
         self.assertEqual(len(result["records"]), 1)
+
+    def test_revised_csv_postings_keep_latest_but_preserve_older_detail(self):
+        source = Path(self.work.name) / "versions.csv"
+        rows = [
+            ("IRS-OLD", "IRS27-220503", "2032H5", "Sources Sought", "SAP Software Subscription", "2026-09-28 10:19:12"),
+            ("IRS-NEW", "IRS27-220503", "2032H5", "Sources Sought", "SAP Software Subscription", "2026-09-28 10:25:17"),
+            ("FA-OLD", "FA940126Mishap", "FA9401", "Sources Sought", "Requesting infomation for MISHAP ANALYSIS & ANIMATION FACILITY", "2026-09-28 12:47:09"),
+            ("FA-NEW", "FA940126Mishap", "FA9401", "Sources Sought", "Requesting information for MISHAP ANALYSIS & ANIMATION FACILITY", "2026-09-28 12:50:49"),
+            # Same solicitation but clearly different title must remain visible.
+            ("FA-OTHER", "FA940126Mishap", "FA9401", "Sources Sought", "Unrelated replacement equipment notice", "2026-09-28 13:00:00"),
+            # Same number issued by a different office is a separate notice.
+            ("IRS-OTHER-OFFICE", "IRS27-220503", "OTHER", "Sources Sought", "SAP Software Subscription", "2026-09-28 11:00:00"),
+        ]
+        with source.open("w", newline="", encoding="utf-8") as output:
+            writer = csv.DictWriter(output, fieldnames=[
+                "NoticeId", "Sol#", "AAC Code", "Type", "Title", "PostedDate", "Active",
+            ])
+            writer.writeheader()
+            for notice_id, sol, office, kind, title, posted in rows:
+                writer.writerow({"NoticeId": notice_id, "Sol#": sol, "AAC Code": office,
+                                 "Type": kind, "Title": title, "PostedDate": posted, "Active": "Yes"})
+        index = str(Path(self.work.name) / "versions.sqlite")
+        # Six valid source rows pass the source-size guard even though only
+        # four latest logical opportunities should be searchable.
+        self.assertEqual(build_from_csv(str(source), index, min_records=6), 4)
+        with patch.object(local_index, "current_index", return_value=(index, self.manifest)):
+            self.assertEqual(local_index.search({"posted_from": "2026-09-28", "posted_to": "2026-09-28"}, 1, 25)["total_records"], 4)
+            self.assertIsNotNone(local_index.detail("IRS-OLD"))
+            self.assertIsNotNone(local_index.detail("FA-OLD"))
+        with patch.object(local_index, "pinned_opportunity_index", return_value=index):
+            feed = local_index.feed_page("unused", "unused", "2026-09-28", "2026-09-28", 0, 25)
+        self.assertEqual({item["notice_id"] for item in feed["records"]},
+                         {"IRS-NEW", "FA-NEW", "FA-OTHER", "IRS-OTHER-OFFICE"})
+
+    def test_api_delta_selects_latest_record_when_api_lacks_time(self):
+        source = Path(self.work.name) / "poll-versions.csv"
+        with source.open("w", newline="", encoding="utf-8") as output:
+            writer = csv.DictWriter(output, fieldnames=[
+                "NoticeId", "Sol#", "AAC Code", "Type", "Title", "PostedDate", "Active",
+            ])
+            writer.writeheader()
+            writer.writerow({"NoticeId": "OLD", "Sol#": "A-1", "AAC Code": "FA9401",
+                             "Type": "Sources Sought", "Title": "Cloud support",
+                             "PostedDate": "2026-09-28 12:00:00", "Active": "Yes"})
+        original = str(Path(self.work.name) / "poll-base.sqlite")
+        updated = str(Path(self.work.name) / "poll-updated.sqlite")
+        build_from_csv(str(source), original)
+        count = apply_delta(original, updated, [{
+            "notice_id": "NEW", "solicitation_number": "A-1",
+            "organization_code": "057.5700.AFGSC.FA9401", "type": "Sources Sought",
+            "type_code": "r", "title": "Cloud support", "posted_date": "2026-09-28",
+            "active": True,
+        }])
+        self.assertEqual(count, 1)
+        with patch.object(local_index, "pinned_opportunity_index", return_value=updated):
+            feed = local_index.feed_page("unused", "unused", "2026-09-28", "2026-09-28", 0, 25)
+        self.assertEqual([item["notice_id"] for item in feed["records"]], ["NEW"])
+
+    def test_missing_office_code_does_not_collapse_agency_wide_notices(self):
+        source = Path(self.work.name) / "no-office.csv"
+        with source.open("w", newline="", encoding="utf-8") as output:
+            writer = csv.DictWriter(output, fieldnames=[
+                "NoticeId", "Sol#", "CGAC", "Type", "Title", "PostedDate", "Active",
+            ])
+            writer.writeheader()
+            for notice_id, posted in (("FIRST", "2026-09-28 12:00:00"),
+                                      ("SECOND", "2026-09-28 12:05:00")):
+                writer.writerow({"NoticeId": notice_id, "Sol#": "A-1", "CGAC": "057",
+                                 "Type": "Sources Sought", "Title": "Cloud support",
+                                 "PostedDate": posted, "Active": "Yes"})
+        index = str(Path(self.work.name) / "no-office.sqlite")
+        self.assertEqual(build_from_csv(str(source), index), 2)
+
+    def test_notification_safety_collapses_versions_across_pages(self):
+        older = {"notice_id": "OLD", "solicitation_number": "A-1", "organization_code": "FA9401",
+                 "type_code": "r", "title": "Cloud support", "posted_at": "2026-09-28T12:00:00"}
+        newer = {**older, "notice_id": "NEW", "posted_at": "2026-09-28T12:05:00"}
+        self.assertEqual([item["notice_id"] for item in collapse_versions([older, newer])], ["NEW"])
 
     def test_compressed_entity_index_loads_and_verifies_raw_checksum(self):
         body = Path(self.path).read_bytes()

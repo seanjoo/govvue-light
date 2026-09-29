@@ -182,7 +182,7 @@ def feed_page(index_key: str, index_sha256: str, posted_from: str,
               posted_to: str, page_index: int, page_size: int) -> dict[str, Any]:
     path = pinned_opportunity_index(index_key, index_sha256)
     with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as db:
-        where = "active = 1 AND posted_date >= ? AND posted_date <= ?"
+        where = "active = 1 AND is_current = 1 AND posted_date >= ? AND posted_date <= ?"
         total = int(db.execute(f"SELECT COUNT(*) FROM opportunities WHERE {where}",
                                (posted_from, posted_to)).fetchone()[0])
         rows = db.execute(
@@ -244,7 +244,7 @@ def search(criteria: dict[str, str], page: int, per_page: int) -> dict[str, Any]
     if posted_from and posted_to and posted_from > posted_to:
         raise ValueError("posted_from cannot be later than posted_to")
 
-    clauses = ["active = 1"]
+    clauses = ["active = 1", "is_current = 1"]
     args: list[Any] = []
     for key, column in (
         ("ptype", "type_code"),

@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import tempfile
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -65,6 +66,11 @@ def _download_index(s3, bucket: str, manifest: dict, output_path: str) -> None:
         s3.download_file(bucket, manifest["key"], output_path)
 
 
+def _source_row_count(index_path: str) -> int:
+    with sqlite3.connect(f"file:{index_path}?mode=ro", uri=True) as db:
+        return int(db.execute("SELECT COUNT(*) FROM opportunities WHERE active = 1").fetchone()[0])
+
+
 def publish(csv_path: str, bucket: str, source_date: str, *, min_records: int = 1000) -> dict:
     source_date = date.fromisoformat(source_date).isoformat()
     version = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -72,13 +78,14 @@ def publish(csv_path: str, bucket: str, source_date: str, *, min_records: int = 
     previous_count = 0
     try:
         previous = json.loads(s3.get_object(Bucket=bucket, Key=MANIFEST_KEY)["Body"].read())
-        previous_count = int(previous.get("record_count") or 0)
+        previous_count = int(previous.get("raw_record_count") or previous.get("record_count") or 0)
     except s3.exceptions.NoSuchKey:
         pass
     required_count = max(min_records, int(previous_count * 0.7))
     with tempfile.TemporaryDirectory(prefix="govvue-opp-index-") as work:
         index_path = os.path.join(work, "opportunities.sqlite")
         count = build_from_csv(csv_path, index_path, min_records=required_count)
+        raw_count = _source_row_count(index_path)
         artifact = _upload_index(s3, bucket, index_path, version)
         manifest = {
             "version": version,
@@ -86,6 +93,8 @@ def publish(csv_path: str, bucket: str, source_date: str, *, min_records: int = 
             "source_date": source_date,
             "snapshot_source_date": source_date,
             "record_count": count,
+            "raw_record_count": raw_count,
+            "superseded_record_count": raw_count - count,
             "published_at": datetime.now(timezone.utc).isoformat(),
         }
         # S3 object PUT is atomic; the old manifest remains live until this succeeds.
@@ -141,8 +150,9 @@ def publish_poll(bucket: str, sam_key_parameter: str, sam_api: str,
             raise ValueError("Published opportunity index checksum mismatch")
         count = apply_delta(
             base, updated, records,
-            min_records=max(min_records, int(previous.get("record_count", 0) * 0.7)),
+            min_records=max(min_records, int((previous.get("raw_record_count") or previous.get("record_count") or 0) * 0.7)),
         )
+        raw_count = _source_row_count(updated)
         raw_key = f"raw/opportunities/polls/{stamp}.json.gz"
         s3.put_object(
             Bucket=bucket, Key=raw_key,
@@ -153,6 +163,8 @@ def publish_poll(bucket: str, sam_key_parameter: str, sam_api: str,
         manifest = {
             "version": stamp, **artifact,
             "source_date": end.isoformat(), "record_count": count,
+            "raw_record_count": raw_count,
+            "superseded_record_count": raw_count - count,
             "snapshot_source_date": previous.get("snapshot_source_date") or previous["source_date"],
             "published_at": datetime.now(timezone.utc).isoformat(),
             "source": "intraday_api",

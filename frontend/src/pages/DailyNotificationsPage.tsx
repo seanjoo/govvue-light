@@ -212,8 +212,8 @@ export default function DailyNotificationsPage() {
         </div>
         <div className="grid-row grid-gap">
           <Filter label="Title or keywords" name="title" value={filters.title} update={updateFilter} wide />
-          <Filter label="Notice ID" name="notice_id" value={filters.notice_id} update={updateFilter} />
-          <Filter label="Solicitation number" name="solicitation_number" value={filters.solicitation_number} update={updateFilter} />
+          <Filter label="SAM.gov Notice ID" name="solicitation_number" value={filters.solicitation_number} update={updateFilter} />
+          <Filter label="SAM record ID" name="notice_id" value={filters.notice_id} update={updateFilter} />
           <Filter label="PSC / classification code" name="classification_code" value={filters.classification_code} update={updateFilter} hint="Separate multiple codes with commas." />
           <Filter label="Organization" name="organization_name" value={filters.organization_name} update={updateFilter} />
           <Filter label="Response due from" name="response_deadline_from" value={filters.response_deadline_from} update={updateFilter} type="date" />

@@ -14,6 +14,7 @@ import boto3
 
 import storage
 from notification_filters import matches, sanitize_criteria
+from opportunity_versions import collapse_versions
 from runtime_config import get_runtime_config
 from sam_client import fetch_description
 
@@ -38,7 +39,7 @@ def _load_feed(run_date: str, total_pages: int) -> list[dict[str, Any]]:
             notice_id = str(opportunity.get("notice_id") or "")
             if notice_id:
                 opportunities[notice_id] = opportunity
-    return list(opportunities.values())
+    return collapse_versions(opportunities.values())
 
 
 def _compact_text(value: Any) -> str:
@@ -123,6 +124,7 @@ def _email_bodies(
     for opportunity in email_opportunities:
         title = _compact_text(opportunity.get("title")) or "Untitled opportunity"
         notice_id = _compact_text(opportunity.get("notice_id"))
+        sam_notice_id = _compact_text(opportunity.get("solicitation_number"))
         opportunity_type = _compact_text(opportunity.get("type")) or "Opportunity"
         due_date = _compact_text(opportunity.get("response_deadline")) or "Not provided"
         description = _description_excerpt(opportunity.get("description")) or "No description was provided by SAM.gov."
@@ -132,7 +134,7 @@ def _email_bodies(
                 f"- {title}",
                 f"  Type: {opportunity_type}",
                 f"  Response due: {due_date}",
-                f"  Notice ID: {notice_id}",
+                f"  SAM.gov Notice ID: {sam_notice_id or 'Not provided'}",
                 f"  Description: {description}",
                 f"  View details: {detail_url}",
                 "",
@@ -143,7 +145,7 @@ def _email_bodies(
             f"<strong>{html.escape(title)}</strong><br>"
             f"<strong>Type:</strong> {html.escape(opportunity_type)}<br>"
             f"<strong>Response due:</strong> {html.escape(due_date)}<br>"
-            f"<strong>Notice ID:</strong> {html.escape(notice_id)}"
+            f"<strong>SAM.gov Notice ID:</strong> {html.escape(sam_notice_id or 'Not provided')}"
             f'<p style="margin: .5rem 0;">{html.escape(description)}</p>'
             f'<a href="{html.escape(detail_url)}">View in GovVue Light</a>'
             "</li>"

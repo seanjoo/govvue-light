@@ -134,6 +134,17 @@ notifications. Inspect the feed Lambda logs, queue depths, DLQs, and the
 
 Each email includes up to 10 matching opportunities with the notice type,
 response deadline, a short description, and a direct GovVue Light detail link.
+The displayed SAM.gov Notice ID is the solicitation number (`Sol#` in the
+public CSV); the separate SAM record ID remains the stable GovVue Light detail
+URL key. When the public CSV contains multiple active posting versions for the
+same office, notice type, and sufficiently similar title, the local index and
+daily feed expose only the newest posting timestamp. Older record IDs remain
+available for saved-detail links. The intraday API overlay uses the API's
+latest-active record to reconcile same-day versions. Distinct titles or offices
+are not collapsed solely because they share a solicitation number.
+The published manifest reports both `raw_record_count` and `record_count`;
+the source-size safety check uses the raw count so expected version reduction
+does not look like a truncated download.
 The notification run page remains the complete, paginated result for that day.
 Runs with no matches are recorded with an email status of `SKIPPED`; no email
 is submitted to SES for those runs.

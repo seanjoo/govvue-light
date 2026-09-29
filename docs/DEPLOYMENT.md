@@ -359,8 +359,11 @@ first-Sunday file is available), all `America/New_York`.
 
 The daily notification schedule remains per user. When local search is enabled,
 its shared feed reads a pinned, published local index instead of making one SAM
-request per feed page. Email deduplication and saved notification definitions
-remain unchanged. Scheduled notifications wait for the day's full opportunity
+request per feed page. The index selects the latest posting version for
+matching office, notice type, solicitation number, and similar title, while
+preserving older records for existing saved links. Rebuild the full opportunity
+snapshot after deploying a change to version-selection logic; deploying Lambda
+code alone does not rewrite the already-published index. Scheduled notifications wait for the day's full opportunity
 snapshot and catch up after it publishes if their configured time has passed.
 A manually requested run can fall back to the existing SAM feed when the index
 is missing; the source choice is pinned in run metadata so pages do not mix.
