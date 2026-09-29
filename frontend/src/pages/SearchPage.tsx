@@ -107,7 +107,7 @@ export default function SearchPage() {
     try {
       const plan = await api<SearchInterpretation>('/opportunities/search/interpret', {
         method: 'POST',
-        body: JSON.stringify({ query: aiQuery, profile_mode: profileMode }),
+        body: JSON.stringify({ query: aiQuery, profile_mode: userContext?.company ? profileMode : 'exclude' }),
       });
       const next = { ...EMPTY_FILTERS, ...plan.criteria };
       if (next.posted_within) {
@@ -144,19 +144,28 @@ export default function SearchPage() {
           <form onSubmit={buildAiSearch}>
             <label className="usa-label" htmlFor="ai-search-query">Opportunity description</label>
             <span className="usa-hint">Use plain language. The builder creates editable local-search filters; it does not rank or process results with AI.</span>
-            <textarea className="usa-textarea maxw-none" id="ai-search-query" rows={4} required minLength={5} maxLength={2000} value={aiQuery} onChange={(event) => setAiQuery(event.target.value)} placeholder="Example: Find custom web application development and O&M support opportunities in the defense sector that fit our company." />
+            <textarea className="usa-textarea maxw-none" id="ai-search-query" rows={4} required minLength={5} maxLength={2000} value={aiQuery} onChange={(event) => setAiQuery(event.target.value)} placeholder={userContext.company ? 'Example: Find custom web application development and O&M support opportunities in the defense sector that fit our company.' : 'Example: Find custom web application development and O&M support opportunities in the defense sector.'} />
             <div className="ai-search-builder__actions">
               <div>
-                <label className="usa-label" htmlFor="profile-mode">Company profile</label>
-                <select className="usa-select" id="profile-mode" value={profileMode} onChange={(event) => setProfileMode(event.target.value as 'auto' | 'include' | 'exclude')}>
-                  <option value="auto">Use automatically when relevant</option>
-                  <option value="include">Always use company profile</option>
-                  <option value="exclude">Do not use company profile</option>
-                </select>
+                {userContext.company ? (
+                  <>
+                    <label className="usa-label" htmlFor="profile-mode">Company profile</label>
+                    <select className="usa-select" id="profile-mode" value={profileMode} onChange={(event) => setProfileMode(event.target.value as 'auto' | 'include' | 'exclude')}>
+                      <option value="auto">Use automatically when relevant</option>
+                      <option value="include">Always use company profile</option>
+                      <option value="exclude">Do not use company profile</option>
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <span className="usa-label">Company profile</span>
+                    <Link className="usa-button usa-button--outline" to="/company-profile">Create a company profile</Link>
+                  </>
+                )}
               </div>
               <button className="usa-button" type="submit" disabled={buildingPlan}>{buildingPlan ? 'Building filters…' : 'Build search filters'}</button>
             </div>
-            <p className="usa-hint">{userContext.company ? <>Shared profile: <Link to="/company-profile">{userContext.company.name}</Link></> : <>No company profile is assigned. <Link to="/company-profile">Create your company profile</Link>.</>}</p>
+            <p className="usa-hint">{userContext.company ? <>Shared profile: <Link to="/company-profile">{userContext.company.name}</Link></> : 'You can build search filters without a company profile, then create one to tailor future searches.'}</p>
           </form>
           {interpretation && (
             <div className="ai-search-plan" role="status">

@@ -53,7 +53,10 @@ export default function SavedSearchesPage() {
 
   return (
     <>
-      <div className="page-heading"><div><p className="page-kicker">Reusable filters</p><h1>Saved searches</h1></div></div>
+      <div className="page-heading">
+        <div><p className="page-kicker">Reusable filters</p><h1>Saved searches</h1></div>
+        <Link className="usa-button usa-button--outline" to="/search">New opportunity search</Link>
+      </div>
       {error && <div className="usa-alert usa-alert--error margin-bottom-3" role="alert"><div className="usa-alert__body"><p className="usa-alert__text">{error}</p></div></div>}
       <div className="saved-search-grid">
         {saved.length ? saved.map((item) => (
@@ -71,7 +74,7 @@ export default function SavedSearchesPage() {
               <button className="usa-button usa-button--unstyled" type="button" onClick={() => remove(item.id)}>Delete</button>
             </div>
           </article>
-        )) : <p>No saved searches yet.</p>}
+        )) : <div className="empty-state"><h2>No saved opportunity searches</h2><p>Save filters from Opportunity Search to reuse them here.</p><Link className="usa-button" to="/search">Search opportunities</Link></div>}
       </div>
       <div className="section-heading"><h2>Recent search history</h2><button type="button" className="usa-button usa-button--unstyled" disabled={!history.length} onClick={clearHistory}>Clear history</button></div>
       <ul className="usa-list usa-list--unstyled history-list">
