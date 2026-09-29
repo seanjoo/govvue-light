@@ -62,7 +62,7 @@ class NotificationEmailTests(unittest.TestCase):
 
         self.assertIn("Showing the first 1 matches.", text_body)
         self.assertIn("Type: Solicitation", text_body)
-        self.assertIn("SAM.gov Notice ID: SAM-123", text_body)
+        self.assertIn("Notice ID: SAM-123", text_body)
         self.assertNotIn("Notice ID: notice/1", text_body)
         self.assertIn("Response due: 2026-10-15T17:00:00-04:00", text_body)
         self.assertIn("Description: Supply precision equipment <quickly>.", text_body)

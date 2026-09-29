@@ -134,7 +134,7 @@ def _email_bodies(
                 f"- {title}",
                 f"  Type: {opportunity_type}",
                 f"  Response due: {due_date}",
-                f"  SAM.gov Notice ID: {sam_notice_id or 'Not provided'}",
+                f"  Notice ID: {sam_notice_id or 'Not provided'}",
                 f"  Description: {description}",
                 f"  View details: {detail_url}",
                 "",
@@ -145,7 +145,7 @@ def _email_bodies(
             f"<strong>{html.escape(title)}</strong><br>"
             f"<strong>Type:</strong> {html.escape(opportunity_type)}<br>"
             f"<strong>Response due:</strong> {html.escape(due_date)}<br>"
-            f"<strong>SAM.gov Notice ID:</strong> {html.escape(sam_notice_id or 'Not provided')}"
+            f"<strong>Notice ID:</strong> {html.escape(sam_notice_id or 'Not provided')}"
             f'<p style="margin: .5rem 0;">{html.escape(description)}</p>'
             f'<a href="{html.escape(detail_url)}">View in GovVue Light</a>'
             "</li>"

@@ -177,7 +177,7 @@ export default function SearchPage() {
           </div>
           <div className="tablet:grid-col-3">
             <div className="field-label">
-              <label className="usa-label" htmlFor="solicitation_number">SAM.gov Notice ID</label>
+              <label className="usa-label" htmlFor="solicitation_number">Notice ID</label>
             </div>
             <input className="usa-input maxw-none" id="solicitation_number" value={filters.solicitation_number} onChange={(event) => update('solicitation_number', event.target.value)} />
           </div>
@@ -194,7 +194,7 @@ export default function SearchPage() {
         <details className="filter-details">
           <summary>More filters</summary>
           <div className="grid-row grid-gap">
-            <Filter label="SAM record ID" name="notice_id" value={filters.notice_id} update={update} />
+            <Filter label="Record ID" name="notice_id" value={filters.notice_id} update={update} />
             <Filter label="PSC / classification code" name="classification_code" value={filters.classification_code} update={update} hint="Separate multiple codes with commas." />
             <Filter label="Organization" name="organization_name" value={filters.organization_name} update={update} hint="Use one organization, or separate multiple exact organization names with |." />
             <Filter label="Exclude organizations" name="exclude_organization_name" value={filters.exclude_organization_name} update={update} hint="Separate multiple agencies or organizations with |. Useful for excluding DoD from civilian searches." />

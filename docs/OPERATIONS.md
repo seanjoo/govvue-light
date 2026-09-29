@@ -134,8 +134,8 @@ notifications. Inspect the feed Lambda logs, queue depths, DLQs, and the
 
 Each email includes up to 10 matching opportunities with the notice type,
 response deadline, a short description, and a direct GovVue Light detail link.
-The displayed SAM.gov Notice ID is the solicitation number (`Sol#` in the
-public CSV); the separate SAM record ID remains the stable GovVue Light detail
+The displayed Notice ID is the SAM.gov solicitation number (`Sol#` in the
+public CSV); the separate Record ID remains the stable GovVue Light detail
 URL key. When the public CSV contains multiple active posting versions for the
 same office, notice type, and sufficiently similar title, the local index and
 daily feed expose only the newest posting timestamp. Older record IDs remain

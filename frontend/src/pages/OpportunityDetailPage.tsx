@@ -120,8 +120,8 @@ export default function OpportunityDetailPage() {
         <p className="page-kicker">{opportunity.type}</p>
         <h1>{opportunity.title}</h1>
         <dl className="detail-grid">
-          <Field label="SAM.gov Notice ID" value={opportunity.solicitation_number} />
-          <Field label="SAM record ID" value={opportunity.notice_id} />
+          <Field label="Notice ID" value={opportunity.solicitation_number} />
+          <Field label="Record ID" value={opportunity.notice_id} />
           <Field label="Posted" value={opportunity.posted_date} />
           <Field label="Response due" value={opportunity.response_deadline} important />
           <Field label="NAICS" value={opportunity.naics_code} />
