@@ -35,6 +35,14 @@ aws cloudformation describe-stacks --stack-name govvue-light-dev --profile works
 CodeBuild runs and logs, schedule state, SQS/DLQ depth, and manual job buttons.
 It also has a read-only Cost Explorer page. Costs are for the whole workshop
 account, not just GovVue Light, and current-month figures may lag.
+The admin navigation has separate **Users** and **Companies** directories.
+Both tables support search, filters, sorting, and client-side pagination over
+the complete Cognito user list. Select a user to change their platform role,
+enabled status, company assignment, company role, or feature flags; resend an
+invitation, send a password reset, or delete the account. Select a company to
+see its members, open a member's user details, or edit the shared company
+profile. New invitations and company workspaces are started from their
+respective directory pages.
 Administrators can run the read-only `POST /admin/ingestion/validate` API with
 `{"kind":"opportunities"}` or `{"kind":"entities"}` to measure a full cold
 local-search path before setting `local_search_enabled: true`.

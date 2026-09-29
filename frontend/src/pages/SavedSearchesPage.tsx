@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import SavedSearchCriteria from '../components/SavedSearchCriteria';
 import { api } from '../lib/api';
 import { createNotificationDraft } from '../lib/notificationDraft';
+import { opportunityResultsUrl } from '../lib/opportunitySearch';
 import type { DailyNotification, SavedSearch, SearchHistory } from '../types';
 
 export default function SavedSearchesPage() {
@@ -22,10 +23,6 @@ export default function SavedSearchesPage() {
     });
   }
   useEffect(load, []);
-
-  function searchUrl(criteria: Record<string, string>) {
-    return `/search?${new URLSearchParams(criteria)}`;
-  }
 
   async function remove(searchId: string) {
     await api(`/saved-searches/${searchId}`, { method: 'DELETE' });
@@ -64,7 +61,7 @@ export default function SavedSearchesPage() {
             <h2>{item.name}</h2>
             <SavedSearchCriteria criteria={item.criteria} emptyLabel="All active opportunities" />
             <div>
-              <Link className="usa-button" to={searchUrl(item.criteria)}>Run search</Link>
+              <Link className="usa-button" to={opportunityResultsUrl(item.criteria)} state={{ recordHistory: true }}>Run search</Link>
               <button
                 className="usa-button usa-button--outline"
                 type="button"
@@ -78,7 +75,7 @@ export default function SavedSearchesPage() {
       </div>
       <div className="section-heading"><h2>Recent search history</h2><button type="button" className="usa-button usa-button--unstyled" disabled={!history.length} onClick={clearHistory}>Clear history</button></div>
       <ul className="usa-list usa-list--unstyled history-list">
-        {history.map((item) => <li key={`${item.created_at}-${JSON.stringify(item.criteria)}`}><Link to={searchUrl(item.criteria)}>{describe(item.criteria)}</Link><span>{item.result_count.toLocaleString()} results · {new Date(item.created_at * 1000).toLocaleString()}</span></li>)}
+        {history.map((item) => <li key={`${item.created_at}-${JSON.stringify(item.criteria)}`}><Link to={opportunityResultsUrl(item.criteria)} state={{ recordHistory: true }}>{describe(item.criteria)}</Link><span>{item.result_count.toLocaleString()} results · {new Date(item.created_at * 1000).toLocaleString()}</span></li>)}
       </ul>
     </>
   );

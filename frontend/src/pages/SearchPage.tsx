@@ -1,7 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import OpportunityCard from '../components/OpportunityCard';
-import Pagination from '../components/Pagination';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import MultiSelectFilter, {
   NOTICE_TYPE_OPTIONS,
   SET_ASIDE_OPTIONS,
@@ -11,20 +9,13 @@ import NaicsPicker from '../components/NaicsPicker';
 import PostedDateFilter from '../components/PostedDateFilter';
 import InfoTip from '../components/InfoTip';
 import { api } from '../lib/api';
-import { createNotificationDraft } from '../lib/notificationDraft';
-import type { Opportunity, ResultNavigation, SearchInterpretation, SearchResponse, UserContext } from '../types';
+import { compactSearchCriteria, OPPORTUNITY_SORT_OPTIONS, opportunityResultsUrl } from '../lib/opportunitySearch';
+import type { SearchInterpretation, UserContext } from '../types';
 
 const today = new Date();
 const prior = new Date(today);
 prior.setDate(today.getDate() - 30);
 const iso = (value: Date) => value.toISOString().slice(0, 10);
-const SORT_OPTIONS = [
-  ['response_deadline_desc', 'Response due — latest first'],
-  ['response_deadline_asc', 'Response due — soonest first'],
-  ['posted_desc', 'Posted date — newest first'],
-  ['posted_asc', 'Posted date — oldest first'],
-] as const;
-
 const EMPTY_FILTERS: Record<string, string> = {
   title: '',
   notice_id: '',
@@ -49,8 +40,7 @@ const EMPTY_FILTERS: Record<string, string> = {
 
 export default function SearchPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const initial = useMemo(() => {
     const values = { ...EMPTY_FILTERS };
     for (const key of Object.keys(values)) values[key] = searchParams.get(key) ?? values[key];
@@ -64,22 +54,13 @@ export default function SearchPage() {
   const [postedDateMode, setPostedDateMode] = useState<'range' | 'rolling'>(
     initial.posted_within ? 'rolling' : 'range',
   );
-  const [result, setResult] = useState<SearchResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [page, setPage] = useState(Number(searchParams.get('page') ?? '1'));
-  const [lastSearchCriteria, setLastSearchCriteria] = useState<Record<string, string> | null>(null);
   const [userContext, setUserContext] = useState<UserContext | null>(null);
   const [aiQuery, setAiQuery] = useState('');
   const [profileMode, setProfileMode] = useState<'auto' | 'include' | 'exclude'>('auto');
   const [buildingPlan, setBuildingPlan] = useState(false);
   const [interpretation, setInterpretation] = useState<SearchInterpretation | null>(null);
-
-  const hasInitialCriteria = [...searchParams.keys()].some((key) => key !== 'page');
-  useEffect(() => {
-    if (hasInitialCriteria) runSearch(page, false);
-  }, []); // saved-search URL should run once
 
   useEffect(() => {
     api<UserContext>('/me').then(setUserContext).catch(() => undefined);
@@ -101,46 +82,10 @@ export default function SearchPage() {
       });
   }
 
-  async function runSearch(nextPage = 1, recordHistory = nextPage === 1) {
-    setLoading(true);
-    setError('');
-    setMessage('');
-    try {
-      const criteria = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
-      const params = new URLSearchParams();
-      Object.entries(criteria).forEach(([key, value]) => params.set(key, value));
-      params.set('page', String(nextPage));
-      params.set('per_page', '25');
-      params.set('record_history', String(recordHistory));
-      const response = await api<SearchResponse>(`/opportunities/search?${params}`);
-      setResult(response);
-      setLastSearchCriteria(criteria);
-      setPage(nextPage);
-      const visibleParams = new URLSearchParams(params);
-      visibleParams.delete('record_history');
-      visibleParams.delete('per_page');
-      setSearchParams(visibleParams, { replace: true });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Search failed');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function saveOpportunity(opportunity: Opportunity) {
-    try {
-      await api('/saved-opportunities', { method: 'POST', body: JSON.stringify({ opportunity }) });
-      setMessage(`Saved “${opportunity.title}”.`);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not save opportunity');
-    }
-  }
-
   async function saveCurrentSearch() {
     const name = window.prompt('Name this search');
     if (!name) return;
-    const criteria = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
+    const criteria = compactSearchCriteria(filters);
     try {
       await api('/saved-searches', { method: 'POST', body: JSON.stringify({ name, criteria }) });
       setMessage(`Saved search “${name}”.`);
@@ -151,15 +96,7 @@ export default function SearchPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    runSearch(1, true);
-  }
-
-  function createDailyNotification() {
-    if (!lastSearchCriteria) return;
-    const sourceName = lastSearchCriteria.title || 'Opportunity search';
-    navigate('/notifications', {
-      state: { notificationDraft: createNotificationDraft(sourceName, lastSearchCriteria) },
-    });
+    navigate(opportunityResultsUrl(filters), { state: { recordHistory: true } });
   }
 
   async function buildAiSearch(event: FormEvent) {
@@ -184,8 +121,6 @@ export default function SearchPage() {
       }
       setFilters(next);
       setInterpretation(plan);
-      setResult(null);
-      setLastSearchCriteria(null);
       setMessage('Search filters are ready. Review or edit them, then search.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to build the search');
@@ -252,7 +187,7 @@ export default function SearchPage() {
               <InfoTip text="Local results are sorted across all matches. A live SAM.gov fallback may require extra requests and has its own limits." label="About result sorting" />
             </div>
             <select className="usa-select maxw-none" id="sort" value={filters.sort} onChange={(event) => update('sort', event.target.value)}>
-              {SORT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              {OPPORTUNITY_SORT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </div>
         </div>
@@ -295,64 +230,13 @@ export default function SearchPage() {
           </div>
           <p className="usa-hint margin-top-2">Multiple values within one filter use OR. Different inclusion filters are combined with AND. Local search has no SAM.gov request-combination limit.</p>
         </details>
-        <button className="usa-button margin-top-3" type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search opportunities'}</button>
+        <button className="usa-button margin-top-3" type="submit">Search opportunities</button>
       </form>
 
       {error && <Alert type="error">{error}</Alert>}
       {message && <Alert type="success">{message}</Alert>}
-      {result && (
-        <section aria-live="polite" aria-busy={loading} className="results-section">
-          <div className="results-summary">
-            <h2>{result.total_records.toLocaleString()} active opportunities</h2>
-            <div className="results-summary__actions">
-              <span>{result.source === 'local' ? `Local index · SAM data as of ${result.source_date || 'unknown'}` : result.cache_hit ? 'Cached SAM.gov response' : 'Fresh SAM.gov response'}{result.upstream_queries > 1 ? ` · merged ${result.upstream_queries} searches` : ''}</span>
-              <button className="usa-button usa-button--outline" type="button" onClick={createDailyNotification}>Create daily notification</button>
-            </div>
-          </div>
-          {result.items.length ? result.items.map((opportunity, index) => (
-            <OpportunityCard
-              key={opportunity.notice_id}
-              opportunity={opportunity}
-              onSave={saveOpportunity}
-              navigation={resultNavigation(result, index, page, lastSearchCriteria || criteriaFromFilters(filters), `${location.pathname}${location.search}`)}
-            />
-          )) : <div>
-            <p>No active opportunities matched these filters.</p>
-            {lastSearchCriteria?.notice_id && !lastSearchCriteria.notice_id.includes(',') && (
-              <p>Looking for an older notice? <a href={`https://sam.gov/opp/${encodeURIComponent(lastSearchCriteria.notice_id.trim())}/view`} target="_blank" rel="noreferrer">Try opening it on SAM.gov ↗</a></p>
-            )}
-          </div>}
-          <Pagination page={page} hasNext={result.has_next} onChange={(value) => runSearch(value, false)} />
-        </section>
-      )}
     </>
   );
-}
-
-function criteriaFromFilters(filters: Record<string, string>) {
-  return Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
-}
-
-function resultNavigation(
-  result: SearchResponse,
-  index: number,
-  page: number,
-  criteria: Record<string, string>,
-  returnTo: string,
-): ResultNavigation {
-  return {
-    kind: 'opportunity',
-    ids: result.items.map((item) => item.notice_id),
-    index,
-    page,
-    per_page: result.per_page,
-    total_records: result.total_records,
-    has_next: result.has_next,
-    criteria,
-    return_to: returnTo,
-    source_label: 'opportunity search results',
-    paginated: true,
-  };
 }
 
 function Filter({ label, name, value, update, type = 'text', hint }: { label: string; name: string; value: string; update: (name: string, value: string) => void; type?: string; hint?: string }) {

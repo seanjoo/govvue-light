@@ -1,11 +1,24 @@
 .admin-shell .navbar > .container-xl { display: flex; flex-wrap: wrap; gap: 1rem; }
-.admin-shell .navbar-brand { color: #165a9d; font-weight: 700; text-decoration: none; }
+.admin-shell .navbar-brand { display: inline-flex; align-items: center; gap: .65rem; color: #162e51; font-weight: 700; text-decoration: none; }
+.admin-brand-mark { display: block; width: 2.3rem; height: 2.3rem; flex: 0 0 2.3rem; }
 .admin-nav { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
 .admin-nav a { color: #334155; font-weight: 600; text-decoration: none; }
 .admin-nav a:hover, .admin-nav a:focus { color: #165a9d; }
 .admin-account { display: flex; align-items: center; gap: .75rem; margin-left: auto; }
+.admin-directory-filters { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+.admin-directory-filters label { display: grid; gap: .25rem; min-width: 10rem; flex: 1 1 10rem; font-size: .875rem; font-weight: 600; }
+.admin-directory-filters label:first-child { flex: 2 1 16rem; }
+.admin-directory-table { min-width: 650px; }
+.admin-directory-pager, .admin-directory-pager__controls { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.admin-directory-pager { justify-content: space-between; }
+.admin-directory-pager .form-select { width: 4.5rem; }
+.admin-detail-list { display: grid; gap: .4rem; margin-bottom: 1.25rem; }
+.admin-detail-list div { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: .5rem; }
+.admin-detail-list dt { color: #667085; font-weight: 500; }
+.admin-detail-list dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 800px) {
   .admin-shell .navbar > .container-xl { align-items: flex-start; }
   .admin-nav { order: 3; width: 100%; }
   .admin-account { margin-left: 0; }
+  .admin-directory-pager { align-items: flex-start; }
 }

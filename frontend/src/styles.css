@@ -114,13 +114,28 @@ a { color: #005ea8; }
 .results-summary span { color: #565c65; font-size: .9rem; }
 .results-summary__actions { display: flex; align-items: center; gap: 1rem; }
 .results-summary__actions .usa-button { margin: 0; }
+.search-results-toolbar + .results-section { margin-top: 0; }
+.search-results-criteria { padding: 1rem 1.25rem; background: #fff; border: 1px solid #dfe1e2; border-radius: 5px; }
+.search-results-criteria .saved-search-criteria { margin: .5rem 0 0; }
+.search-results-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 1rem; margin: 1.5rem 0 1rem; padding: 1rem 1.25rem; background: #fff; border: 1px solid #dfe1e2; border-radius: 5px; }
+.search-results-toolbar__sort { display: grid; gap: .35rem; min-width: min(100%, 17rem); font-weight: 700; }
+.search-results-toolbar__sort .usa-select { margin-top: 0; max-width: none; }
+.results-summary > .usa-button { margin: 0; }
 .opportunity-card { margin-bottom: 1rem; padding: 1.4rem 1.5rem; background: #fff; border-left: 5px solid #73b3e7; border-radius: 3px; box-shadow: 0 1px 4px rgba(0,0,0,.09); }
 .opportunity-card__eyebrow { display: flex; align-items: center; gap: .75rem; color: #565c65; font-size: .88rem; font-weight: 700; text-transform: uppercase; }
 .opportunity-meta, .detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 1rem; }
 .opportunity-meta div, .detail-grid div { min-width: 0; }
 .opportunity-meta dt, .detail-grid dt { color: #565c65; font-size: .8rem; font-weight: 700; text-transform: uppercase; }
 .opportunity-meta dd, .detail-grid dd { margin: .2rem 0 0; overflow-wrap: anywhere; }
-.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 2rem; }
+.pager { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .5rem 1rem; margin-top: 2rem; }
+.pager .usa-button { margin: 0; }
+.pager__pages { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem; }
+.pager__pages > span { display: inline-flex; align-items: center; }
+.pager__pages .usa-button { min-width: 2.5rem; padding: .45rem .6rem; }
+.pager__ellipsis { padding: 0 .35rem; }
+.pager__jump { display: flex; align-items: center; gap: .4rem; }
+.pager__jump label { white-space: nowrap; }
+.pager__jump .usa-input { width: 5rem; margin: 0; padding: .4rem; }
 .detail-action-bar { position: sticky; top: 0; z-index: 2; margin: -2.5rem -2rem 2rem; padding: 1rem 2rem; background: #e7f6f8; border-bottom: 1px solid #99deea; }
 .detail-action-bar > div { display: flex; align-items: center; gap: .75rem; }
 .detail-action-bar .usa-button { margin: 0; }
@@ -180,33 +195,13 @@ a { color: #005ea8; }
 .password-requirement--pending { color: #565c65; }
 .password-requirement--met { color: #2e8540; }
 .password-requirement--unmet { color: #b50909; }
-.admin-create-user { margin-bottom: 2rem; }
-.admin-create-user h2 { margin-top: 0; }
-.admin-create-company { margin-bottom: 2rem; }
-.admin-create-company h2 { margin-top: 0; }
-.admin-create-company__controls { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(16rem, 1fr) auto; align-items: end; gap: 1rem; }
-.admin-create-company__controls .usa-button { margin: 0 0 .05rem; }
-.admin-company-list { display: grid; gap: .75rem; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #dfe1e2; }
-.admin-company-card { display: grid; grid-template-columns: minmax(12rem, .8fr) minmax(16rem, 1.2fr) auto; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid #dfe1e2; background: #f7f9fa; }
-.admin-company-card h3, .admin-company-card p { margin: 0; }
-.admin-company-card p, .admin-company-card span { display: block; margin-top: .25rem; color: #565c65; }
-.admin-company-card .usa-button { margin: 0; white-space: nowrap; }
-.admin-user-list { display: grid; gap: 1rem; }
-.admin-user-card { padding: 1.25rem 1.5rem; border: 1px solid #dfe1e2; border-left: 5px solid #73b3e7; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
-.admin-user-card__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-.admin-user-card__heading h3 { margin: 0; }
-.admin-user-card__heading p { margin: .25rem 0 0; color: #565c65; text-transform: capitalize; }
-.admin-user-card__controls { display: grid; grid-template-columns: minmax(12rem, 20rem) 1fr; align-items: end; gap: 1.5rem; margin-top: 1rem; }
-.admin-user-card__enabled { padding-bottom: .4rem; }
-.admin-user-card__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: 1.25rem; }
-.admin-user-card__actions .usa-button { margin: 0; }
-.admin-user-card__access { margin-top: 1.25rem; padding: 1rem; border: 1px solid #dfe1e2; background: #f7f9fa; }
-.admin-user-card__access .usa-legend { font-size: 1rem; font-weight: 700; }
-.admin-user-card__access-grid { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(10rem, 14rem) minmax(15rem, 1fr); align-items: end; gap: 1rem; }
-.admin-user-card__feature { padding-bottom: .4rem; }
 .company-profile { max-width: 60rem; }
 .company-profile__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; }
 .company-profile__fields > div:nth-child(-n+4) { grid-column: 1 / -1; }
+.company-profile__view { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem 1.5rem; margin: 1.5rem 0 0; }
+.company-profile__view > div:nth-child(-n+4) { grid-column: 1 / -1; }
+.company-profile__view dt { margin-bottom: .35rem; font-weight: 700; }
+.company-profile__view dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .company-members { max-width: 60rem; margin-top: 1.5rem; }
 .company-members h2 { margin: .2rem 0 .75rem; }
 .company-members__invite { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(10rem, 14rem) auto; align-items: end; gap: 1rem; }
@@ -315,9 +310,8 @@ a { color: #005ea8; }
   .opportunity-meta, .detail-grid { grid-template-columns: 1fr 1fr; }
   .detail-action-bar { position: static; margin: -2.5rem -1rem 1rem; padding: 1rem; }
   .history-list li { flex-direction: column; }
-  .admin-user-card__controls { grid-template-columns: 1fr; gap: .5rem; }
-  .admin-user-card__access-grid, .company-profile__fields, .company-members__invite, .company-member, .admin-create-company__controls, .admin-company-card, .ai-search-builder__actions { grid-template-columns: 1fr; }
-  .company-profile__fields > div:nth-child(-n+4) { grid-column: auto; }
+  .company-profile__fields, .company-profile__view, .company-members__invite, .company-member, .ai-search-builder__actions { grid-template-columns: 1fr; }
+  .company-profile__fields > div:nth-child(-n+4), .company-profile__view > div:nth-child(-n+4) { grid-column: auto; }
   .ai-search-builder { padding: 1rem; }
   .ai-search-builder__heading { align-items: flex-start; flex-direction: column; }
   .results-summary__actions, .notification-import__controls, .page-heading__actions { width: 100%; align-items: stretch; flex-direction: column; }

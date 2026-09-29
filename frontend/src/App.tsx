@@ -7,11 +7,11 @@ import OpportunityDetailPage from './pages/OpportunityDetailPage';
 import SavedOpportunitiesPage from './pages/SavedOpportunitiesPage';
 import SavedSearchesPage from './pages/SavedSearchesPage';
 import SearchPage from './pages/SearchPage';
+import OpportunitySearchResultsPage from './pages/OpportunitySearchResultsPage';
 import DailyNotificationsPage from './pages/DailyNotificationsPage';
 import DailyNotificationDetailPage from './pages/DailyNotificationDetailPage';
 import DailyNotificationRunPage from './pages/DailyNotificationRunPage';
 import AccountPage from './pages/AccountPage';
-import AdminUsersPage from './pages/AdminUsersPage';
 import EntitySearchPage from './pages/EntitySearchPage';
 import SavedEntitiesPage from './pages/SavedEntitiesPage';
 import SavedEntitySearchesPage from './pages/SavedEntitySearchesPage';
@@ -57,6 +57,7 @@ export default function App() {
       <Route element={<Protected />}>
         <Route element={<Layout />}>
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/search/results" element={<OpportunitySearchResultsPage />} />
           <Route path="/entities" element={<EntitySearchPage />} />
           <Route path="/entities/:uei" element={<EntityDetailPage />} />
           <Route path="/saved-entities" element={<SavedEntitiesPage />} />
@@ -70,6 +71,9 @@ export default function App() {
           <Route path="/account" element={<AccountPage />} />
           <Route path="/company-profile" element={<CompanyProfilePage />} />
           <Route path="/admin/companies/:companyId/profile" element={<AdminRedirect />} />
+          <Route path="/admin/companies/:companyId" element={<AdminRedirect />} />
+          <Route path="/admin/companies" element={<AdminRedirect />} />
+          <Route path="/admin/users/:username" element={<AdminRedirect />} />
           <Route path="/admin/users" element={<AdminRedirect />} />
           <Route path="*" element={<Navigate to="/search" replace />} />
         </Route>

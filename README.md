@@ -13,7 +13,7 @@ The research frontend uses the U.S. Web Design System (USWDS); the new admin con
 - Public About, Privacy, and Terms pages for Google OAuth branding and user disclosure
 - API Gateway HTTP API with a Cognito JWT authorizer
 - Python Lambda API packaged separately from CloudFormation
-- Direct, active-only SAM.gov search with hierarchical 2022 NAICS selection, multi-value filters, converged results, 1,000-record upstream caching, and 25-record UI pages
+- Direct, active-only SAM.gov search with hierarchical 2022 NAICS selection, multi-value filters, converged results, 1,000-record upstream caching, and a dedicated sortable results page with 25-record pages and page jumping
 - Direct SAM.gov Entity Management API v4 search with public-data filters, native multi-value parameters, saved entity searches, 10-record cached pages, and a saved-entity watchlist
 - Opportunity detail and plain-text description retrieval
 - Saved opportunities with bulk removal
@@ -26,7 +26,7 @@ The research frontend uses the U.S. Web Design System (USWDS); the new admin con
 - YAML-to-SSM configuration, including SecureString SAM.gov and Google OAuth secrets
 - Timestamped Lambda, frontend, and CloudFormation release artifacts
 - Component deployment scripts and one end-to-end deployment command
-- Staged local SQLite/FTS search, daily active-opportunity snapshot, four configurable intraday polls, monthly public entity replacement with daily JSON updates, and a separate admin console at `admin.govvue.com`
+- Staged local SQLite/FTS search, daily active-opportunity snapshot, four configurable intraday polls, monthly public entity replacement with daily JSON updates, and a separate admin console at `admin.govvue.com` with paginated Users and Companies directories and detail views
 
 ## Quick start
 

@@ -18,11 +18,11 @@ export default function OpportunityDetailPage() {
   const detailParams = new URLSearchParams(location.search);
   const returnTo = safeReturnTo(
     navigation?.return_to || routeState?.returnTo || detailParams.get('return_to'),
-    '/search',
+    '/search/results',
   );
   const sourceLabel = safeSourceLabel(
     navigation?.source_label || routeState?.sourceLabel || detailParams.get('source_label'),
-    'opportunity search',
+    'search results',
   );
   const [saved, setSaved] = useState(false);
 

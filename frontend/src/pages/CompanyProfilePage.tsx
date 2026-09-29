@@ -56,7 +56,7 @@ export default function CompanyProfilePage() {
       .then((response) => {
         setData(response);
         setProfile(response.profile);
-        if (response.can_edit && !companyId) loadMembers().catch((caught) => setError(caught instanceof Error ? caught.message : 'Unable to load company members'));
+        if (response.can_manage_members && !companyId) loadMembers().catch((caught) => setError(caught instanceof Error ? caught.message : 'Unable to load company members'));
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : 'Unable to load company profile'))
       .finally(() => setLoading(false));
@@ -158,7 +158,7 @@ export default function CompanyProfilePage() {
     <>
       <div className="page-heading">
         <div><p className="page-kicker">Company workspace</p><h1>{data?.company?.name || (data?.can_create ? 'Create your company profile' : 'Company profile')}</h1></div>
-        {companyId && <Link className="usa-button usa-button--outline" to="/admin/users">Back to admin</Link>}
+        {companyId && <Link className="usa-button usa-button--outline" to={`/admin/companies/${companyId}`}>Back to company</Link>}
       </div>
       {error && <Alert type="error">{error}</Alert>}
       {message && <Alert type="success">{message}</Alert>}
@@ -175,15 +175,21 @@ export default function CompanyProfilePage() {
           <button className="usa-button margin-top-3" type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create company profile'}</button>
         </form>
       )}
-      {data?.company && (
+      {data?.company && data.can_edit && (
         <form className="search-panel company-profile" onSubmit={save}>
           <p className="text-base margin-top-0">This profile is shared by everyone assigned to {data.company.name}. The AI search builder uses it only when requested or when an automatic search refers to company fit.</p>
-          {!data.can_edit && <p className="usa-hint">You can view this profile. A company manager or administrator can edit it.</p>}
-          <ProfileFields profile={profile} disabled={!data.can_edit} onChange={(name, value) => setProfile((current) => ({ ...current, [name]: value }))} />
-          {data.can_edit && <button className="usa-button margin-top-3" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save company profile'}</button>}
+          <ProfileFields profile={profile} onChange={(name, value) => setProfile((current) => ({ ...current, [name]: value }))} />
+          <button className="usa-button margin-top-3" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save company profile'}</button>
         </form>
       )}
-      {data?.company && data.can_edit && !companyId && (
+      {data?.company && !data.can_edit && (
+        <section className="search-panel company-profile">
+          <p className="text-base margin-top-0">This profile is shared by everyone assigned to {data.company.name}. The AI search builder uses it only when requested or when an automatic search refers to company fit.</p>
+          <p className="usa-hint">Only a company manager or GovVue administrator can update this profile.</p>
+          <ReadOnlyProfile profile={profile} />
+        </section>
+      )}
+      {data?.company && data.can_manage_members && !companyId && (
         <section className="search-panel company-members">
           <div className="section-heading"><div><p className="page-kicker">Company access</p><h2>Members</h2></div></div>
           <form className="company-members__invite" onSubmit={invite}>
@@ -222,9 +228,21 @@ export default function CompanyProfilePage() {
   );
 }
 
-function ProfileFields({ profile, disabled = false, onChange }: {
+function ReadOnlyProfile({ profile }: { profile: CompanyProfile }) {
+  return (
+    <dl className="company-profile__view">
+      {FIELDS.map((field) => (
+        <div key={field.name}>
+          <dt>{field.label}</dt>
+          <dd>{profile[field.name]?.trim() || 'Not provided'}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function ProfileFields({ profile, onChange }: {
   profile: CompanyProfile;
-  disabled?: boolean;
   onChange: (name: keyof CompanyProfile, value: string) => void;
 }) {
   return (
@@ -234,9 +252,9 @@ function ProfileFields({ profile, disabled = false, onChange }: {
           <label className="usa-label" htmlFor={`profile-${field.name}`}>{field.label}</label>
           <span className="usa-hint">{field.hint}</span>
           {field.rows ? (
-            <textarea className="usa-textarea maxw-none" id={`profile-${field.name}`} rows={field.rows} value={profile[field.name]} disabled={disabled} onChange={(event) => onChange(field.name, event.target.value)} />
+            <textarea className="usa-textarea maxw-none" id={`profile-${field.name}`} rows={field.rows} value={profile[field.name]} onChange={(event) => onChange(field.name, event.target.value)} />
           ) : (
-            <input className="usa-input maxw-none" id={`profile-${field.name}`} value={profile[field.name]} disabled={disabled} onChange={(event) => onChange(field.name, event.target.value)} />
+            <input className="usa-input maxw-none" id={`profile-${field.name}`} value={profile[field.name]} onChange={(event) => onChange(field.name, event.target.value)} />
           )}
         </div>
       ))}

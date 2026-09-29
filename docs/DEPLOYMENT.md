@@ -199,6 +199,10 @@ invitation-only access model and cannot replace an existing company assignment.
 A company can contain any number of users and has one shared profile. A company
 manager can edit that profile, invite regular users from the Company profile
 page, promote other company managers, and remove a member's company assignment.
+Regular company members can view the shared profile but cannot edit it, see the
+member list, or invite and manage users. A platform administrator who is a
+company member can edit the profile, but uses the separate Admin area to manage
+company users and access.
 Removing a company member does not delete the Cognito account or personal
 GovVue data. Per-user feature flags remain platform-admin controls.
 

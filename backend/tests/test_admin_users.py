@@ -149,6 +149,25 @@ class AdminAuthorizationTests(unittest.TestCase):
 
 
 class CognitoUserAdminTests(unittest.TestCase):
+    @patch("user_admin._groups_for", return_value=[])
+    @patch("user_admin.cognito_client")
+    def test_list_users_reads_every_cognito_page(self, client_factory, _groups):
+        client = MagicMock()
+        client_factory.return_value = client
+        client.list_users.side_effect = [
+            {
+                "Users": [{"Username": f"user-{page}-{index}"} for index in range(60)],
+                "PaginationToken": str(page + 1),
+            }
+            for page in range(9)
+        ] + [{"Users": [{"Username": "last-user"}]}]
+
+        with patch.dict(os.environ, {"USER_POOL_ID": "pool-1"}):
+            result = user_admin.list_users()
+
+        self.assertEqual(len(result), 541)
+        self.assertEqual(client.list_users.call_count, 10)
+
     @patch("user_admin.ses_client")
     def test_failed_ses_identity_is_recreated(self, client_factory):
         client = MagicMock()

@@ -36,6 +36,122 @@ def event(method: str, path: str, body=None, groups="[user]"):
 
 
 class CompanyProfileTests(unittest.TestCase):
+    def test_company_member_can_view_profile_but_not_edit_it(self):
+        settings = {
+            "company_id": "company-1",
+            "company_role": "member",
+            "features": [],
+        }
+        company = {"company_id": "company-1", "name": "Acme"}
+        with (
+            patch("app.storage.get_user_settings", return_value=settings),
+            patch("app.storage.get_company", return_value=company),
+            patch("app.storage.get_company_profile", return_value={"overview": "Software"}),
+            patch("app.storage.put_company_profile") as put_profile,
+        ):
+            viewed = app.lambda_handler(
+                event("GET", "/company-profile"),
+                SimpleNamespace(aws_request_id="test"),
+            )
+            body = json.loads(viewed["body"])
+            self.assertEqual(viewed["statusCode"], 200)
+            self.assertEqual(body["profile"]["overview"], "Software")
+            self.assertFalse(body["can_edit"])
+            self.assertFalse(body["can_manage_members"])
+            self.assertFalse(body["can_create"])
+
+            updated = app.lambda_handler(
+                event("PUT", "/company-profile", {"profile": {"overview": "Changed"}}),
+                SimpleNamespace(aws_request_id="test"),
+            )
+            self.assertEqual(updated["statusCode"], 403)
+            put_profile.assert_not_called()
+
+    def test_platform_admin_member_can_edit_profile_but_not_manage_members_here(self):
+        settings = {
+            "company_id": "company-1",
+            "company_role": "member",
+            "features": [],
+        }
+        with (
+            patch("app.storage.get_user_settings", return_value=settings),
+            patch("app.storage.get_company", return_value={"company_id": "company-1", "name": "Acme"}),
+            patch("app.storage.get_company_profile", return_value={"overview": "Software"}),
+            patch("app.storage.put_company_profile", return_value={"overview": "Changed"}) as put_profile,
+        ):
+            viewed = app.lambda_handler(
+                event("GET", "/company-profile", groups="[admin]"),
+                SimpleNamespace(aws_request_id="test"),
+            )
+            body = json.loads(viewed["body"])
+            self.assertEqual(viewed["statusCode"], 200)
+            self.assertTrue(body["can_edit"])
+            self.assertFalse(body["can_manage_members"])
+
+            updated = app.lambda_handler(
+                event("PUT", "/company-profile", {"profile": {"overview": "Changed"}}, groups="[admin]"),
+                SimpleNamespace(aws_request_id="test"),
+            )
+            self.assertEqual(updated["statusCode"], 200)
+            put_profile.assert_called_once_with("company-1", {"overview": "Changed"})
+
+    def test_company_manager_can_view_member_list(self):
+        settings = {
+            "company_id": "company-1",
+            "company_role": "manager",
+            "features": [],
+        }
+        with (
+            patch("app.storage.get_user_settings", return_value=settings),
+            patch("app.storage.get_company", return_value={"company_id": "company-1", "name": "Acme"}),
+            patch("app.storage.get_company_profile", return_value={"overview": "Software"}),
+            patch("app.user_admin.list_users", return_value=[]),
+        ):
+            viewed = app.lambda_handler(
+                event("GET", "/company-profile"),
+                SimpleNamespace(aws_request_id="test"),
+            )
+            body = json.loads(viewed["body"])
+            self.assertTrue(body["can_edit"])
+            self.assertTrue(body["can_manage_members"])
+
+            members = app.lambda_handler(
+                event("GET", "/company-members"),
+                SimpleNamespace(aws_request_id="test"),
+            )
+            self.assertEqual(members["statusCode"], 200)
+            self.assertEqual(json.loads(members["body"])["items"], [])
+
+    def test_company_member_cannot_view_or_manage_members(self):
+        settings = {
+            "company_id": "company-1",
+            "company_role": "member",
+            "features": [],
+        }
+        with (
+            patch("app.storage.get_user_settings", return_value=settings),
+            patch("app.storage.get_company", return_value={"company_id": "company-1", "name": "Acme"}),
+            patch("app.user_admin.list_users") as list_users,
+            patch("app.user_admin.create_user") as create_user,
+            patch("app.user_admin.get_user") as get_user,
+        ):
+            for groups in ("[user]", "[admin]"):
+                for method, path, body in (
+                    ("GET", "/company-members", None),
+                    ("POST", "/company-members", {"email": "new@example.com"}),
+                    ("PUT", "/company-members/another-user", {"company_role": "manager"}),
+                    ("DELETE", "/company-members/another-user", None),
+                ):
+                    with self.subTest(groups=groups, method=method, path=path):
+                        result = app.lambda_handler(
+                            event(method, path, body, groups=groups),
+                            SimpleNamespace(aws_request_id="test"),
+                        )
+                        self.assertEqual(result["statusCode"], 403)
+            list_users.assert_not_called()
+            create_user.assert_not_called()
+            get_user.assert_not_called()
+
     def test_unassigned_user_receives_self_service_profile_state(self):
         with (
             patch(

@@ -24,11 +24,11 @@ Except for `/health`, requests require a Cognito ID token in `Authorization: Bea
 | `POST` | `/opportunities/search/interpret` | Feature-gated Bedrock plan that returns editable opportunity filters |
 | `GET` | `/company-profile` | Read the user's shared profile or return self-service creation state when unassigned |
 | `POST` | `/company-profile` | Create a company/profile for an unassigned user and make that user its manager |
-| `PUT` | `/company-profile` | Company-manager or admin profile update |
-| `GET` | `/company-members` | Company-manager or admin member list |
-| `POST` | `/company-members` | Invite a regular Cognito user into the current company |
-| `PUT` | `/company-members/{username}` | Change another member's company role |
-| `DELETE` | `/company-members/{username}` | Remove another user's company assignment without deleting the account |
+| `PUT` | `/company-profile` | Company-manager or platform-admin profile update; regular company members have read-only access |
+| `GET` | `/company-members` | Company-manager member list |
+| `POST` | `/company-members` | Company-manager invitation of a regular Cognito user into the current company |
+| `PUT` | `/company-members/{username}` | Company manager changes another member's company role |
+| `DELETE` | `/company-members/{username}` | Company manager removes another user's company assignment without deleting the account |
 | `GET` | `/opportunities/{noticeId}` | Basic details and plain-text description |
 | `GET` | `/entities/search` | Search SAM.gov Entity Management API v4 |
 | `GET` | `/saved-opportunities` | List the user's saved opportunities |

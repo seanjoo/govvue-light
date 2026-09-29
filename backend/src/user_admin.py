@@ -125,7 +125,7 @@ def list_users() -> list[dict[str, Any]]:
             result = client.list_users(**request)
             users.extend(result.get("Users", []))
             token = result.get("PaginationToken")
-            if not token or len(users) >= 500:
+            if not token:
                 break
         normalized = [_normalize_user(user) for user in users]
         return sorted(normalized, key=lambda item: (item["email"].casefold(), item["username"]))

@@ -43,6 +43,9 @@ echo "Installing locked frontend dependencies..." >&2
   npm run build
 ) >&2
 
+# Finder metadata is not an application asset and must not be published.
+find "$PROJECT_ROOT/frontend/dist" -name '.DS_Store' -type f -delete
+
 python3 "$PROJECT_ROOT/scripts/render-runtime-config.py" \
   --output "$PROJECT_ROOT/frontend/dist/runtime-config.js" \
   --api-base-url "$API_BASE_URL" \

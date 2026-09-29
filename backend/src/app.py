@@ -136,6 +136,7 @@ def _access_context(event: dict[str, Any], user_id: str) -> dict[str, Any]:
         **settings,
         "company": company,
         "can_edit_company_profile": is_admin or settings["company_role"] == "manager",
+        "can_manage_company_members": settings["company_role"] == "manager",
     }
 
 
@@ -180,8 +181,8 @@ def _require_company_manager(event: dict[str, Any], user_id: str) -> dict[str, A
     access = _access_context(event, user_id)
     if not access["company_id"]:
         raise ForbiddenError("Your account is not assigned to a company")
-    if not access["can_edit_company_profile"]:
-        raise ForbiddenError("Company manager or administrator role is required")
+    if not access["can_manage_company_members"]:
+        raise ForbiddenError("Company manager role is required")
     return access
 
 
@@ -611,6 +612,7 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                     "company": company,
                     "profile": storage.get_company_profile(company_id),
                     "can_edit": True,
+                    "can_manage_members": False,
                     "can_create": False,
                 },
             )
@@ -625,6 +627,7 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                     "company": company,
                     "profile": storage.put_company_profile(company_id, profile),
                     "can_edit": True,
+                    "can_manage_members": False,
                     "can_create": False,
                 },
             )
@@ -739,6 +742,7 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                         "company": None,
                         "profile": storage.empty_company_profile(),
                         "can_edit": False,
+                        "can_manage_members": False,
                         "can_create": True,
                     },
                 )
@@ -748,6 +752,7 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                     "company": company,
                     "profile": storage.get_company_profile(access["company_id"]),
                     "can_edit": access["can_edit_company_profile"],
+                    "can_manage_members": access["can_manage_company_members"],
                     "can_create": False,
                 },
             )
@@ -777,6 +782,7 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                     "company": created_company,
                     "profile": saved_profile,
                     "can_edit": True,
+                    "can_manage_members": True,
                     "can_create": False,
                 },
             )
@@ -795,6 +801,7 @@ def _route(event: dict[str, Any]) -> dict[str, Any]:
                     "company": company,
                     "profile": storage.put_company_profile(access["company_id"], profile),
                     "can_edit": True,
+                    "can_manage_members": access["can_manage_company_members"],
                     "can_create": False,
                 },
             )

@@ -66,6 +66,7 @@ export interface UserContext {
   company: Company | null;
   features: string[];
   can_edit_company_profile: boolean;
+  can_manage_company_members: boolean;
 }
 
 export interface CompanyProfile {
@@ -85,6 +86,7 @@ export interface CompanyProfileResponse {
   company: Company | null;
   profile: CompanyProfile;
   can_edit: boolean;
+  can_manage_members: boolean;
   can_create: boolean;
 }
 
