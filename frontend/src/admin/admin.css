@@ -12,6 +12,8 @@
 .admin-directory-pager, .admin-directory-pager__controls { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
 .admin-directory-pager { justify-content: space-between; }
 .admin-directory-pager .form-select { width: 4.5rem; }
+.admin-cost-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; }
+.admin-cost-toolbar label { display: grid; gap: .25rem; min-width: 11rem; font-size: .875rem; font-weight: 600; }
 .admin-detail-list { display: grid; gap: .4rem; margin-bottom: 1.25rem; }
 .admin-detail-list div { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: .5rem; }
 .admin-detail-list dt { color: #667085; font-weight: 500; }

@@ -154,4 +154,5 @@ def costs() -> dict:
             "services": services,
             "estimated": period.get("Estimated", False),
         })
+    months.sort(key=lambda item: item["month"], reverse=True)
     return {"months": months, "scope": "AWS account (not GovVue-only)", "currency": "USD"}

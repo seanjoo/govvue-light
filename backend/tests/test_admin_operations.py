@@ -56,3 +56,22 @@ class AdminOperationsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown ingestion job"):
             admin_operations.start("delete-everything")
         queue.send_message.assert_called_once()
+
+    @patch("admin_operations.boto3.client")
+    def test_costs_default_to_latest_month_first(self, client):
+        client.return_value.get_cost_and_usage.return_value = {
+            "ResultsByTime": [
+                {"TimePeriod": {"Start": "2026-08-01"}, "Groups": [{
+                    "Keys": ["Amazon S3"],
+                    "Metrics": {"UnblendedCost": {"Amount": "2.50"}},
+                }]},
+                {"TimePeriod": {"Start": "2026-09-01"}, "Estimated": True, "Groups": [{
+                    "Keys": ["AWS Lambda"],
+                    "Metrics": {"UnblendedCost": {"Amount": "1.25"}},
+                }]},
+            ],
+        }
+        result = admin_operations.costs()
+        self.assertEqual([item["month"] for item in result["months"]], ["2026-09", "2026-08"])
+        self.assertEqual(result["months"][0]["total_usd"], 1.25)
+        self.assertTrue(result["months"][0]["estimated"])

@@ -34,7 +34,9 @@ aws cloudformation describe-stacks --stack-name govvue-light-dev --profile works
 `https://admin.govvue.com` shows index counts/source dates, the last ten
 CodeBuild runs and logs, schedule state, SQS/DLQ depth, and manual job buttons.
 It also has a read-only Cost Explorer page. Costs are for the whole workshop
-account, not just GovVue Light, and current-month figures may lag.
+account, not just GovVue Light, and current-month figures may lag. The page
+defaults to newest month first and offers card and expandable-list views with
+month and service sorting.
 The admin navigation has separate **Users** and **Companies** directories.
 Both tables support search, filters, sorting, and client-side pagination over
 the complete Cognito user list. Select a user to change their platform role,
